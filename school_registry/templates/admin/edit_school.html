@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать {{ school.Official_Name }} - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-pencil"></i> Редактировать школу</h4>
+                    <p class="mb-0 small">ID: {{ school.PK_School }}</p>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_school', school_id=school.PK_School) }}" class="needs-validation" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Вы редактируете: <strong>{{ school.Official_Name }}</strong>
+                        </div>
+                        
+                        <!-- Основная информация -->
+                        <h5 class="mb-3 border-bottom pb-2">Основная информация</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.official_name.label(class="form-label") }}
+                                    {{ form.official_name(class="form-control", placeholder="Официальное название школы") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.phone.label(class="form-label") }}
+                                    {{ form.phone(class="form-control", placeholder="+7 (3852) 123456") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.legal_address.label(class="form-label") }}
+                            {{ form.legal_address(class="form-control", rows="3", placeholder="Юридический адрес") }}
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.email.label(class="form-label") }}
+                                    {{ form.email(class="form-control", placeholder="school@example.com") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.website.label(class="form-label") }}
+                                    {{ form.website(class="form-control", placeholder="http://example.com") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Дополнительная информация -->
+                        <h5 class="mb-3 border-bottom pb-2 mt-4">Дополнительная информация</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.founding_date.label(class="form-label") }}
+                                    {{ form.founding_date(class="form-control") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.number_of_students.label(class="form-label") }}
+                                    {{ form.number_of_students(class="form-control", placeholder="500") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Тип школы и населенный пункт -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                {{ form.type_of_school.label(class="form-label") }}
+                                {{ form.type_of_school(class="form-select") }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.settlement.label(class="form-label") }}
+                                {{ form.settlement(class="form-select") }}
+                            </div>
+                        </div>
+                        
+                        <!-- Инфраструктура и специализации -->
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.infrastructure.label(class="form-label") }}
+                                    {{ form.infrastructure(class="form-select", multiple=True, size="5") }}
+                                    <small class="text-muted">Удерживайте Ctrl для выбора нескольких вариантов</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.specializations.label(class="form-label") }}
+                                    {{ form.specializations(class="form-select", multiple=True, size="5") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Документы -->
+                        <h5 class="mb-3 border-bottom pb-2 mt-4">Документы</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.license.label(class="form-label") }}
+                                    {{ form.license(class="form-control", rows="3", placeholder="Информация о лицензии") }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.accreditation.label(class="form-label") }}
+                                    {{ form.accreditation(class="form-control", rows="3", placeholder="Информация об аккредитации") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 d-flex justify-content-between">
+                            <a href="{{ url_for('school_detail', school_id=school.PK_School) }}" class="btn btn-secondary">
+                                <i class="bi bi-eye"></i> Просмотр
+                            </a>
+                            <div>
+                                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary me-2">
+                                    <i class="bi bi-x-circle"></i> Отмена
+                                </a>  <!-- Закрывающий тег ПЕРЕД содержимым! -->
+                                {{ form.submit(class="btn btn-warning") }}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- История изменений -->
+            <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="bi bi-clock-history"></i> История изменений</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Создана:</strong> {{ school.created_at.strftime('%d.%m.%Y %H:%M') if school.created_at else 'Нет данных' }}</p>
+                            <p><strong>Создал:</strong> {{ school.creator_user.username if school.creator_user else 'Неизвестно' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Обновлена:</strong> {{ school.updated_at.strftime('%d.%m.%Y %H:%M') if school.updated_at else 'Нет данных' }}</p>
+                            <p><strong>Статус:</strong>
+                                {% if school.is_active %}
+                                <span class="badge bg-success">Активна</span>
+                                {% else %}
+                                <span class="badge bg-danger">Неактивна</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Валидация форм
+    var forms = document.querySelectorAll('.needs-validation');
+    Array.prototype.slice.call(forms).forEach(function(form) {
+        form.addEventListener('submit', function(event) {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    });
+    
+    // Форматирование даты для поля
+    var dateField = document.getElementById('founding_date');
+    if (dateField && dateField.value) {
+        // Преобразуем дату в формат YYYY-MM-DD для поля
+        var date = new Date(dateField.value);
+        dateField.value = date.toISOString().split('T')[0];
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Генерация отчетов - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4"><i class="bi bi-file-text"></i> Генерация отчетов</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Информация</h5>
+        </div>
+        <div class="card-body">
+            <p>В этом разделе вы можете сформировать различные отчеты по образовательным учреждениям Алтайского края.</p>
+            <p>Выберите тип отчета, задайте необходимые параметры и нажмите "Сформировать отчет".</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Статистика по количеству учащихся -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Статистика по количеству учащихся</h5>
+                </div>
+                <div class="card-body">
+                    <p>Анализ количества учащихся по районам, типам школ и населенным пунктам.</p>
+                    <ul class="mb-3">
+                        <li>Общее количество учащихся</li>
+                        <li>Среднее количество по районам</li>
+                        <li>Распределение по типам школ</li>
+                        <li>Динамика набора по годам</li>
+                    </ul>
+                    <a href="{{ url_for('report_students') }}" class="btn btn-primary">
+                        <i class="bi bi-bar-chart"></i> Сформировать отчет
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статистика по оснащенности -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Оснащенность школ</h5>
+                </div>
+                <div class="card-body">
+                    <p>Анализ уровня оснащенности школ инфраструктурой.</p>
+                    <ul class="mb-3">
+                        <li>Наличие библиотек, спортзалов, лабораторий</li>
+                        <li>Процент школ с компьютерными классами</li>
+                        <li>Сравнение по районам</li>
+                        <li>Рекомендации по оснащению</li>
+                    </ul>
+                    <a href="{{ url_for('report_infrastructure') }}" class="btn btn-success">
+                        <i class="bi bi-pie-chart"></i> Сформировать отчет
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Кадровый состав -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-badge"></i> Кадровый состав</h5>
+                </div>
+                <div class="card-body">
+                    <p>Отчет по сотрудникам образовательных учреждений.</p>
+                    <ul class="mb-3">
+                        <li>Учителя, директора, завучи</li>
+                        <li>Распределение по должностям</li>
+                        <li>Статистика по стажу работы</li>
+                        <li>Квалификационный состав</li>
+                    </ul>
+                    <a href="{{ url_for('report_staff') }}" class="btn btn-info">
+                        <i class="bi bi-person-lines-fill"></i> Сформировать отчет
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Программы образования -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-book"></i> Образовательные программы</h5>
+                </div>
+                <div class="card-body">
+                    <p>Анализ образовательных программ по школам.</p>
+                    <ul class="mb-3">
+                        <li>Основные и дополнительные программы</li>
+                        <li>Распределение по типам программ</li>
+                        <li>Список программ по школам</li>
+                        <li>Популярность программ</li>
+                    </ul>
+                    <a href="{{ url_for('report_programs') }}" class="btn btn-warning">
+                        <i class="bi bi-list-check"></i> Сформировать отчет
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Блок со стандартными отчетами из ТЗ УДАЛЕН -->
+</div>
+{% endblock %}

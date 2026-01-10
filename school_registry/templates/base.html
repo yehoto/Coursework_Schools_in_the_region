@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Реестр школ Алтайского края{% endblock %}</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-building"></i>
+                <span class="ms-2">Реестр школ Алтайского края</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="bi bi-house"></i> Главная
+                        </a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('search_schools') }}">
+                            <i class="bi bi-search"></i> Поиск
+                        </a>
+                    </li>
+                    
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('reports_index') }}">
+                            <i class="bi bi-file-text"></i> Отчеты
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% if current_user.is_authenticated and user_has_role('school_admin') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Панель управления
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i>
+                            <span class="ms-1">{{ current_user.username }}</span>
+                            <small class="text-light ms-2">({{ user_role_name() }})</small>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('profile') }}">
+                                <i class="bi bi-person"></i> Профиль
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right"></i> Выйти
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">
+                            <i class="bi bi-box-arrow-in-right"></i> Войти
+                        </a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('register') }}">
+                            <i class="bi bi-person-plus"></i> Регистрация
+                        </a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="btn btn-outline-light ms-2" href="{{ url_for('auth_gosuslugi') }}">
+                            <i class="bi bi-passport"></i> Госуслуги
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Основное содержимое -->
+    <main class="container mt-5 pt-3">
+        <!-- Уведомления -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mt-3" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Подвал -->
+    <footer class="footer mt-auto py-4 bg-dark text-white">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5>Реестр школ Алтайского края</h5>
+                    <p class="mb-0">Министерство образования и науки Алтайского края</p>
+                    <p class="text-muted small">© {{ now.year }} Все права защищены</p>
+                </div>
+                
+                <div class="col-md-4">
+                    <h6>Контакты</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-telephone"></i> 8 (3852) 29-44-07</li>
+                        <li><i class="bi bi-envelope"></i> obraz@alreg.ru</li>
+                        <li><i class="bi bi-geo-alt"></i> г. Барнаул, пр. Ленина, 54</li>
+                    </ul>
+                </div>
+                
+                <div class="col-md-4">
+                    <h6>Полезные ссылки</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="https://www.altairegion22.ru" class="text-white-50 text-decoration-none">
+                            <i class="bi bi-link-45deg"></i> Правительство Алтайского края
+                        </a></li>
+                        <li><a href="https://www.gosuslugi.ru" class="text-white-50 text-decoration-none">
+                            <i class="bi bi-link-45deg"></i> Портал госуслуг
+                        </a></li>
+                        <li><a href="http://www.obrnadzor.gov.ru" class="text-white-50 text-decoration-none">
+                            <i class="bi bi-link-45deg"></i> Рособрнадзор
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <hr class="my-4 text-white-50">
+            
+            <div class="row">
+                <div class="col-12 text-center">
+                    <p class="small text-white-50 mb-0">
+                        Версия 1.0.0 |
+                        <a href="#" class="text-white-50 text-decoration-none">Пользовательское соглашение</a> |
+                        <a href="#" class="text-white-50 text-decoration-none">Политика конфиденциальности</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Скрипты -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Активация всплывающих подсказок
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+        
+        // Активация всплывающих окон
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
+        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl)
+        });
+        
+        // Подтверждение действий
+        document.addEventListener('DOMContentLoaded', function() {
+            var confirmLinks = document.querySelectorAll('.confirm-action');
+            confirmLinks.forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    if (!confirm('Вы уверены?')) {
+                        e.preventDefault();
+                    }
+                });
+            });
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

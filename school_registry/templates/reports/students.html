@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика по учащимся - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-people"></i> Статистика по количеству учащихся</h1>
+        <div>
+            <button onclick="window.print()" class="btn btn-outline-secondary">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <a href="{{ url_for('export_schools') }}?format=excel" class="btn btn-success">
+                <i class="bi bi-download"></i> Экспорт
+            </a>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Фильтры отчета</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('report_students') }}" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Район</label>
+                    <select name="district_id" class="form-select">
+                        <option value="">Все районы</option>
+                        {% for district in districts %}
+                        <option value="{{ district.PK_District }}"
+                            {% if request.args.get('district_id')|string == district.PK_District|string %}selected{% endif %}>
+                            {{ district.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Тип школы</label>
+                    <select name="type_id" class="form-select">
+                        <option value="">Все типы</option>
+                        {% for type in school_types %}
+                        <option value="{{ type.PK_Type_of_School }}"
+                            {% if request.args.get('type_id')|string == type.PK_Type_of_School|string %}selected{% endif %}>
+                            {{ type.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Год от</label>
+                    <input type="number" name="min_year" class="form-control"
+                           value="{{ request.args.get('min_year', 2000) }}" min="1900" max="2026">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Год до</label>
+                    <input type="number" name="max_year" class="form-control"
+                           value="{{ request.args.get('max_year', 2026) }}" min="1900" max="2026">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-filter"></i> Применить фильтры
+                    </button>
+                    <a href="{{ url_for('report_students') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Общая статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Всего школ</h6>
+                    <h2 class="mb-0">{{ total_schools }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Всего учащихся</h6>
+                    <h2 class="mb-0">{{ total_students }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Среднее на школу</h6>
+                    <h2 class="mb-0">{{ avg_students_per_school|round(1) }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Самая большая</h6>
+                    <h4 class="mb-0">{{ max_students }}</h4>
+                    <small>{% if max_school %}{{ max_school.Official_Name[:20] }}...{% else %}Нет данных{% endif %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика по районам -->
+    {% if districts_stats %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-map"></i> Статистика по районам</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Район</th>
+                            <th>Количество школ</th>
+                            <th>Всего учащихся</th>
+                            <th>Среднее на школу</th>
+                            <th>Процент от общего</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in districts_stats %}
+                        <tr>
+                            <td><strong>{{ stat.district }}</strong></td>
+                            <td>{{ stat.schools_count }}</td>
+                            <td>{{ stat.total_students }}</td>
+                            <td>{{ stat.avg_students }}</td>
+                            <td>
+                                {% if stat.percentage > 0 %}
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar"
+                                         data-width="{{ stat.percentage }}"
+                                         aria-valuenow="{{ stat.percentage }}"
+                                         aria-valuemin="0" aria-valuemax="100">
+                                        {{ "%.1f"|format(stat.percentage) }}%
+                                    </div>
+                                </div>
+                                {% else %}
+                                <span class="text-muted">0%</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Статистика по типам школ -->
+    {% if types_stats %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-building"></i> Статистика по типам школ</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Тип школы</th>
+                            <th>Количество школ</th>
+                            <th>Всего учащихся</th>
+                            <th>Среднее на школу</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in types_stats %}
+                        <tr>
+                            <td><strong>{{ stat.type }}</strong></td>
+                            <td>{{ stat.schools_count }}</td>
+                            <td>{{ stat.total_students }}</td>
+                            <td>{{ stat.avg_students }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Динамика набора -->
+    {% if yearly_stats %}
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Динамика набора учащихся</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Год основания</th>
+                            <th>Количество школ</th>
+                            <th>Среднее количество учащихся</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for year, data in yearly_stats.items()|sort %}
+                        <tr>
+                            <td>{{ year }}</td>
+                            <td>{{ data.count }}</td>
+                            <td>{{ "%.1f"|format(data.avg_students) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Топ школ по количеству учащихся -->
+    {% if top_schools %}
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-trophy"></i> Топ-10 школ по количеству учащихся</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Название школы</th>
+                            <th>Тип школы</th>
+                            <th>Населенный пункт</th>
+                            <th>Количество учащихся</th>
+                            <th>Год основания</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for school in top_schools %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <a href="{{ url_for('school_detail', school_id=school.PK_School) }}">
+                                    {{ school.Official_Name }}
+                                </a>
+                            </td>
+                            <td>{{ school.type_of_school.Name if school.type_of_school else '' }}</td>
+                            <td>
+                                {% if school.settlement %}
+                                    {{ school.settlement.Type }} {{ school.settlement.Name }}
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ school.Number_of_Students or 0 }}</strong></td>
+                            <td>{{ school.Founding_Date.year if school.Founding_Date else 'Нет данных' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Устанавливаем ширину прогресс-баров из data-width
+    document.querySelectorAll('.progress-bar[data-width]').forEach(function(el) {
+        const width = parseFloat(el.getAttribute('data-width'));
+        if (!isNaN(width)) {
+            el.style.width = width + '%';
+        }
+    });
+});
+</script>
+{% endblock %}

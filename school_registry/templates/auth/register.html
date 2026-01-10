@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card">
+            <div class="card-header bg-success text-white text-center">
+                <h4 class="mb-0"><i class="bi bi-person-plus"></i> Регистрация</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('register') }}" class="needs-validation" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-person"></i>
+                            </span>
+                            {{ form.username(class="form-control", placeholder="Введите имя пользователя", required=true) }}
+                        </div>
+                        <div class="invalid-feedback">
+                            Пожалуйста, введите имя пользователя (минимум 3 символа).
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-envelope"></i>
+                            </span>
+                            {{ form.email(class="form-control", placeholder="Введите email", required=true) }}
+                        </div>
+                        <div class="invalid-feedback">
+                            Пожалуйста, введите корректный email.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Пароль</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-key"></i>
+                            </span>
+                            {{ form.password(class="form-control", placeholder="Введите пароль (минимум 6 символов)", required=true) }}
+                        </div>
+                        <div class="invalid-feedback">
+                            Пароль должен быть не менее 6 символов.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password2" class="form-label">Повторите пароль</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-key-fill"></i>
+                            </span>
+                            {{ form.password2(class="form-control", placeholder="Повторите пароль", required=true) }}
+                        </div>
+                        <div class="invalid-feedback">
+                            Пароли должны совпадать.
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-success btn-lg") }}
+                    </div>
+                </form>
+                <hr class="my-4">
+                <div class="text-center">
+                    <p class="mb-2">Уже есть аккаунт?</p>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-box-arrow-in-right"></i> Войти
+                    </a>
+                </div>
+            </div>
+            <div class="card-footer text-center">
+                <small class="text-muted">
+                    Регистрируясь, вы соглашаетесь с условиями использования.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

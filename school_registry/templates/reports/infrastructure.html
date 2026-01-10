@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Оснащенность школ - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-building"></i> Отчет по оснащенности школ</h1>
+        <div>
+            <button onclick="window.print()" class="btn btn-outline-secondary">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <a href="{{ url_for('export_report', report_type='infrastructure', district_id=request.args.get('district_id'), school_type_id=request.args.get('school_type_id')) }}" 
+               class="btn btn-success">
+                <i class="bi bi-download"></i> Экспорт
+            </a>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Параметры отчета</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('report_infrastructure') }}" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Район</label>
+                    <select name="district_id" class="form-select">
+                        <option value="">Все районы</option>
+                        {% for district in districts %}
+                        <option value="{{ district.PK_District }}"
+                            {% if request.args.get('district_id')|string == district.PK_District|string %}selected{% endif %}>
+                            {{ district.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Тип школы</label>
+                    <select name="school_type_id" class="form-select">
+                        <option value="">Все типы</option>
+                        {% for type in school_types %}
+                        <option value="{{ type.PK_Type_of_School }}"
+                            {% if request.args.get('school_type_id')|string == type.PK_Type_of_School|string %}selected{% endif %}>
+                            {{ type.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Населенный пункт</label>
+                    <select name="settlement_id" class="form-select">
+                        <option value="">Все населенные пункты</option>
+                        {% for settlement in settlements %}
+                        <option value="{{ settlement.PK_Settlement }}"
+                            {% if request.args.get('settlement_id')|string == settlement.PK_Settlement|string %}selected{% endif %}>
+                            {{ settlement.Type }} {{ settlement.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-filter"></i> Сформировать отчет
+                    </button>
+                    <a href="{{ url_for('report_infrastructure') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Общая статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Всего школ</h6>
+                    <h2 class="mb-0">{{ total_schools }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">С библиотекой</h6>
+                    <h2 class="mb-0">{{ with_library }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">С спортзалом</h6>
+                    <h2 class="mb-0">{{ with_gym }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6 class="card-title">С лабораториями</h6>
+                    <h2 class="mb-0">{{ with_labs }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика по инфраструктуре -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Распределение по инфраструктуре</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Тип инфраструктуры</th>
+                            <th>Количество школ</th>
+                            <th>Процент от общего</th>
+                            <th>Процент школ в районе</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in infrastructure_stats %}
+                        <tr>
+                            <td><strong>{{ item.name }}</strong></td>
+                            <td>{{ item.count }}</td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                <div class="progress-bar" role="progressbar" 
+                                    data-width="{{ item.percentage }}"  
+                                    aria-valuenow="{{ item.percentage }}" 
+                                    aria-valuemin="0" 
+                                    aria-valuemax="100">
+                                    {{ "%.1f"|format(item.percentage) }}%
+                                </div>
+                            </div>
+                            </td>
+                            <td>
+                                <small>
+                                    {% for district in item.districts %}
+                                    {{ district.name }}: {{ district.percentage }}%<br>
+                                    {% endfor %}
+                                </small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Школы с детальной инфраструктурой -->
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Детальная информация по школам</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Название школы</th>
+                            <th>Тип школы</th>
+                            <th>Населенный пункт</th>
+                            <th>Инфраструктура</th>
+                            <th>Объектов</th>
+                            <th>Год основания</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for school in schools %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <a href="{{ url_for('school_detail', school_id=school.PK_School) }}">
+                                    {{ school.Official_Name }}
+                                </a>
+                            </td>
+                            <td>{{ school.type_of_school.Name if school.type_of_school else '' }}</td>
+                            <td>
+                                {% if school.settlement %}
+                                {{ school.settlement.Type }} {{ school.settlement.Name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    {% for infra in school.infrastructure %}
+                                    <span class="badge bg-secondary">{{ infra.Name }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ school.infrastructure|length }}</span>
+                            </td>
+                            <td>{{ school.Founding_Date.year if school.Founding_Date else 'Нет данных' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Рекомендации -->
+    {% if total_schools > 0 %}
+    <div class="card mt-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Рекомендации по оснащению</h5>
+        </div>
+        <div class="card-body">
+            <ul>
+                {% set library_percentage = (with_library/total_schools*100) if total_schools > 0 else 0 %}
+                {% set gym_percentage = (with_gym/total_schools*100) if total_schools > 0 else 0 %}
+                {% set labs_percentage = (with_labs/total_schools*100) if total_schools > 0 else 0 %}
+                
+                {% if library_percentage < 80 %}
+                <li>Рекомендуется увеличить количество школ с библиотеками (сейчас {{ "%.1f"|format(library_percentage) }}%)</li>
+                {% endif %}
+                {% if gym_percentage < 70 %}
+                <li>Необходимо улучшить спортивную инфраструктуру (спортзалы есть в {{ "%.1f"|format(gym_percentage) }}% школ)</li>
+                {% endif %}
+                {% if labs_percentage < 60 %}
+                <li>Требуется оснащение лабораториями (наличие в {{ "%.1f"|format(labs_percentage) }}% школ)</li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Устанавливаем ширину прогресс-баров после загрузки страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Все прогресс-бары уже имеют правильную ширину из-за inline стилей
+    // Дополнительная логика не требуется
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Школы-интернаты - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Школы-интернаты с более чем 200 учащимися</h1>
+        <a href="{{ url_for('export_schools') }}?format=excel" class="btn btn-success">
+            <i class="bi bi-download"></i> Экспорт в Excel
+        </a>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Информация об отчете</h5>
+        </div>
+        <div class="card-body">
+            <p>Отчет показывает школы-интернаты с количеством учащихся более 200 человек.</p>
+            <p>Тип школы: <strong>{{ school_type.Name }}</strong></p>
+            <p>Найдено школ: <strong>{{ schools|length }}</strong></p>
+        </div>
+    </div>
+    
+    {% if schools %}
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Список школ</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Название школы</th>
+                            <th>Адрес</th>
+                            <th>Телефон</th>
+                            <th>Учащихся</th>
+                            <th>Населенный пункт</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for school in schools %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ school.Official_Name }}</strong></td>
+                            <td>{{ school.Legal_Adress[:50] }}{% if school.Legal_Adress|length > 50 %}...{% endif %}</td>
+                            <td>{{ school.Phone }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ school.Number_of_Students }}</span>
+                            </td>
+                            <td>
+                                {% if school.settlement %}
+                                {{ school.settlement.Type }} {{ school.settlement.Name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('school_detail', school_id=school.PK_School) }}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        Не найдено школ-интернатов с более чем 200 учащимися.
+    </div>
+    {% endif %}
+    
+    <div class="mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Вернуться на главную
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <!-- Левая колонка - фильтры -->
+    <div class="col-lg-3 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-funnel"></i> Фильтры</h5>
+            </div>
+            <div class="card-body">
+                <form method="get" action="{{ url_for('index') }}" id="filter-form">
+                    <!-- Район и населенный пункт -->
+                    <div class="mb-3">
+                        <label class="form-label">Район</label>
+                        <select name="district_id" id="district-select" class="form-select">
+                            <option value="">Все районы</option>
+                            {% for district in districts %}
+                            <option value="{{ district.PK_District }}"
+                                {% if request.args.get('district_id') == district.PK_District|string %}selected{% endif %}>
+                                {{ district.Name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Населенный пункт</label>
+                        <select name="settlement_id" id="settlement-select" class="form-select">
+                            <option value="">Все населенные пункты</option>
+                            {% for settlement in settlements %}
+                            <option value="{{ settlement.PK_Settlement }}"
+                                {% if request.args.get('settlement_id') == settlement.PK_Settlement|string %}selected{% endif %}>
+                                {{ settlement.Type }} {{ settlement.Name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Тип школы -->
+                    <div class="mb-3">
+                        <label class="form-label">Тип школы</label>
+                        <select name="school_type_id" class="form-select">
+                            <option value="">Все типы</option>
+                            {% for type in school_types %}
+                            <option value="{{ type.PK_Type_of_School }}"
+                                {% if request.args.get('school_type_id') == type.PK_Type_of_School|string %}selected{% endif %}>
+                                {{ type.Name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Специализации (профильные классы) -->
+                    <div class="mb-3">
+                        <label class="form-label">Специализации</label>
+                        <select name="specialization_id" class="form-select">
+                            <option value="">Любая специализация</option>
+                            {% for spec in specializations %}
+                            <option value="{{ spec.PK_Specialization }}"
+                                {% if request.args.get('specialization_id') == spec.PK_Specialization|string %}selected{% endif %}>
+                                {{ spec.Name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Инфраструктура -->
+                    <div class="mb-3">
+                        <label class="form-label">Инфраструктура</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="has_library" id="has_library"
+                                value="1" {% if request.args.get('has_library') %}checked{% endif %}>
+                            <label class="form-check-label" for="has_library">
+                                Библиотека
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="has_gym" id="has_gym"
+                                value="1" {% if request.args.get('has_gym') %}checked{% endif %}>
+                            <label class="form-check-label" for="has_gym">
+                                Спортзал
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="has_lab" id="has_lab"
+                                value="1" {% if request.args.get('has_lab') %}checked{% endif %}>
+                            <label class="form-check-label" for="has_lab">
+                                Лаборатория
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="has_accessible" id="has_accessible"
+                                value="1" {% if request.args.get('has_accessible') %}checked{% endif %}>
+                            <label class="form-check-label" for="has_accessible">
+                                Доступная среда для лиц с ОВЗ
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Количество учащихся -->
+                    <div class="mb-3">
+                        <label class="form-label">Количество учащихся</label>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text">От</span>
+                            <input type="number" name="min_students" class="form-control"
+                                value="{{ request.args.get('min_students', '') }}"
+                                placeholder="0" min="0">
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text">До</span>
+                            <input type="number" name="max_students" class="form-control"
+                                value="{{ request.args.get('max_students', '') }}"
+                                placeholder="5000" min="0">
+                        </div>
+                    </div>
+
+                    <!-- Дополнительные программы образования -->
+                    <div class="mb-3">
+                        <label class="form-label">Дополнительные программы</label>
+                        <select name="program_type" class="form-select">
+                            <option value="">Любые программы</option>
+                            <option value="дополнительная" {% if request.args.get('program_type') == 'дополнительная' %}selected{% endif %}>
+                                Дополнительные программы
+                            </option>
+                            <option value="основная" {% if request.args.get('program_type') == 'основная' %}selected{% endif %}>
+                                Основные программы
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Год основания -->
+                    <div class="mb-3">
+                        <label class="form-label">Год основания</label>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text">От</span>
+                            <input type="number" name="min_year" class="form-control"
+                                value="{{ request.args.get('min_year', '1900') }}"
+                                placeholder="1900" min="1900" max="2026">
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text">До</span>
+                            <input type="number" name="max_year" class="form-control"
+                                value="{{ request.args.get('max_year', '2026') }}"
+                                placeholder="2026" min="1900" max="2026">
+                        </div>
+                    </div>
+
+                    <!-- Аккредитация и лицензия -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="has_accreditation" id="has_accreditation"
+                                value="1" {% if request.args.get('has_accreditation') %}checked{% endif %}>
+                            <label class="form-check-label" for="has_accreditation">
+                                Имеет аккредитацию
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="has_license" id="has_license"
+                                value="1" {% if request.args.get('has_license') %}checked{% endif %}>
+                            <label class="form-check-label" for="has_license">
+                                Имеет лицензию
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-funnel-fill"></i> Применить фильтры
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle"></i> Сбросить все фильтры
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Быстрая статистика -->
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Статистика</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Всего школ:</span>
+                    <strong>{{ schools.total }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>На странице:</span>
+                    <strong>{{ schools.items|length }}</strong>
+                </div>
+                {% if current_user.is_authenticated and user_has_role('region_admin') %}
+                <hr>
+                <a href="{{ url_for('export_schools') }}" class="btn btn-sm btn-outline-success w-100">
+                    <i class="bi bi-download"></i> Экспорт всех школ
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Правая колонка - контент -->
+    <div class="col-lg-9">
+        <!-- Заголовок и поиск -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-0">Образовательные учреждения Алтайского края</h1>
+                <p class="text-muted mb-0">Найдено {{ schools.total }} школ</p>
+                <!-- Активные фильтры -->
+                {% if has_active_filters %}
+                <div class="mt-2">
+                    <small class="text-muted">Активные фильтры:</small>
+                    {% for key, value in active_filters %}
+                    <span class="badge bg-info me-1">
+                        {{ key }}: {{ value }}
+                        <a href="{{ remove_filter_url(key) }}" class="text-white ms-1">
+                            <i class="bi bi-x"></i>
+                        </a>
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% if current_user.is_authenticated and user_has_role('region_admin') %}
+            <a href="{{ url_for('add_school') }}" class="btn btn-success">
+                <i class="bi bi-plus-circle"></i> Добавить школу
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Поисковая строка -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" action="{{ url_for('search_schools') }}" class="row g-2">
+                    <div class="col-md-10">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" name="q" class="form-control"
+                                placeholder="Поиск по названию школы, адресу или телефону..."
+                                value="{{ request.args.get('q', '') }}">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Найти
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Сортировка -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    {% set args_without_sort = {} %}
+    {% for key, value in request.args.items() %}
+        {% if key not in ['sort_by', 'order'] %}
+            {% set _ = args_without_sort.update({key: value}) %}
+        {% endif %}
+    {% endfor %}
+
+    <div class="btn-group" role="group">
+        <a href="{{ url_for('index', sort_by='name', order='asc', **args_without_sort) }}"
+            class="btn btn-outline-secondary {% if request.args.get('sort_by', 'name') == 'name' and request.args.get('sort_by') != 'students' and request.args.get('sort_by') != 'rating' %}active{% endif %}">
+            По названию
+        </a>
+        <a href="{{ url_for('index', sort_by='students', order='desc', **args_without_sort) }}"
+            class="btn btn-outline-secondary {% if request.args.get('sort_by') == 'students' %}active{% endif %}">
+            По количеству учащихся
+        </a>
+        <a href="{{ url_for('index', sort_by='rating', order='desc', **args_without_sort) }}"
+            class="btn btn-outline-secondary {% if request.args.get('sort_by') == 'rating' %}active{% endif %}">
+            По рейтингу
+        </a>
+    </div>
+
+    <div class="text-muted small">
+        Страница {{ schools.page }} из {{ schools.pages }}
+    </div>
+</div>
+
+        <!-- Список школ -->
+        {% if schools.items %}
+        <div class="row row-cols-1 row-cols-md-2 g-4">
+            {% for school in schools.items %}
+            <div class="col">
+                <div class="card h-100 shadow-sm school-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">{{ school.Official_Name }}</h5>
+                            {% if not school.is_active %}
+                            <span class="badge bg-danger">Неактивна</span>
+                            {% endif %}
+                        </div>
+                        
+                        <h6 class="card-subtitle mb-3 text-muted">
+                            <i class="bi bi-building"></i>
+                            {{ school.type_of_school.Name if school.type_of_school else 'Тип не указан' }}
+                        </h6>
+                        
+                        <p class="card-text">
+                            <i class="bi bi-geo-alt"></i>
+                            {{ school.Legal_Adress[:80] }}{% if school.Legal_Adress|length > 80 %}...{% endif %}
+                        </p>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <i class="bi bi-telephone"></i> {{ school.Phone }}
+                            </small>
+                        </div>
+                        
+                        {% if school.Number_of_Students %}
+                        <div class="mb-3">
+                            <span class="badge bg-info">
+                                <i class="bi bi-people"></i> {{ school.Number_of_Students }} учащихся
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Инфраструктура и специализации (кратко) -->
+                        <div class="mb-3">
+                            {% if school.infrastructure %}
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for infra in school.infrastructure[:3] %}
+                                <span class="badge bg-light text-dark">
+                                    <i class="bi bi-check-circle"></i> {{ infra.Name }}
+                                </span>
+                                {% endfor %}
+                                {% if school.infrastructure|length > 3 %}
+                                <span class="badge bg-light text-dark">+{{ school.infrastructure|length - 3 }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Рейтинг -->
+                        <div class="mb-3">
+                            {% set avg_rating = school.get_avg_rating() %}
+                            {% set review_count = school.get_review_count() %}
+                            {% if review_count > 0 %}
+                            <div class="d-flex align-items-center">
+                                {{ render_star_rating(avg_rating)|safe }}
+                                <span class="ms-2">{{ avg_rating|round(1) }}</span>
+                                <small class="text-muted ms-2">({{ review_count }} отзывов)</small>
+                            </div>
+                            {% else %}
+                            <small class="text-muted">Нет отзывов</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('school_detail', school_id=school.PK_School) }}"
+                                class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-info-circle"></i> Подробнее
+                            </a>
+                            {% if current_user.is_authenticated and user_has_role('school_admin') %}
+                            <a href="{{ url_for('edit_school', school_id=school.PK_School) }}"
+                                class="btn btn-outline-warning btn-sm">
+                                <i class="bi bi-pencil"></i> Редактировать
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i>
+                                {% if school.Founding_Date %}
+                                Основана в {{ school.Founding_Date.year }} году
+                                {% else %}
+                                Дата основания не указана
+                                {% endif %}
+                            </small>
+                            <small class="text-muted">
+                                ID: {{ school.PK_School }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Пагинация -->
+        {% if schools.pages > 1 %}
+        <nav aria-label="Навигация по страницам" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% set args_without_page = {} %}
+                {% for key, value in request.args.items() %}
+                {% if key != 'page' %}
+                {% set _ = args_without_page.update({key: value}) %}
+                {% endif %}
+                {% endfor %}
+
+                <!-- Первая страница -->
+                {% if schools.page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('index', page=1, **args_without_page) }}">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Предыдущая страница -->
+                {% if schools.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('index', page=schools.prev_num, **args_without_page) }}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Номера страниц -->
+                {% for page_num in schools.iter_pages(left_edge=1, left_current=2, right_current=3, right_edge=1) %}
+                {% if page_num %}
+                <li class="page-item {% if page_num == schools.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('index', page=page_num, **args_without_page) }}">
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+                {% endif %}
+                {% endfor %}
+
+                <!-- Следующая страница -->
+                {% if schools.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('index', page=schools.next_num, **args_without_page) }}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Последняя страница -->
+                {% if schools.page < schools.pages %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('index', page=schools.pages, **args_without_page) }}">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    Показано {{ ((schools.page - 1) * schools.per_page) + 1 }} - 
+                    {{ [schools.page * schools.per_page, schools.total]|min }} из {{ schools.total }} школ
+                </small>
+            </div>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <!-- Нет школ -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-search display-1 text-muted"></i>
+            </div>
+            <h3 class="h4 mb-3">Школы не найдены</h3>
+            <p class="text-muted mb-4">
+                Попробуйте изменить критерии поиска или фильтры
+            </p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="bi bi-arrow-clockwise"></i> Сбросить фильтры
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Динамическая загрузка населенных пунктов при выборе района
+    const districtSelect = document.getElementById('district-select');
+    const settlementSelect = document.getElementById('settlement-select');
+    
+    if (districtSelect) {
+        districtSelect.addEventListener('change', function() {
+            const districtId = this.value;
+            
+            if (districtId) {
+                fetch(`/api/districts/${districtId}/settlements`)
+                    .then(response => response.json())
+                    .then(data => {
+                        settlementSelect.innerHTML = '<option value="">Все населенные пункты</option>';
+                        data.forEach(function(settlement) {
+                            const option = document.createElement('option');
+                            option.value = settlement.id;
+                            option.textContent = settlement.type + ' ' + settlement.name;
+                            settlementSelect.appendChild(option);
+                        });
+                        
+                        // Сохраняем выбранный населенный пункт если он есть
+                        const currentSettlement = "{{ request.args.get('settlement_id', '') }}";
+                        if (currentSettlement) {
+                            settlementSelect.value = currentSettlement;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при загрузке населенных пунктов:', error);
+                    });
+            } else {
+                // Загружаем все населенные пункты если район не выбран
+                fetch('/api/settlements')
+                    .then(response => response.json())
+                    .then(data => {
+                        settlementSelect.innerHTML = '<option value="">Все населенные пункты</option>';
+                        data.forEach(function(settlement) {
+                            const option = document.createElement('option');
+                            option.value = settlement.id;
+                            option.textContent = settlement.type + ' ' + settlement.name;
+                            settlementSelect.appendChild(option);
+                        });
+                    });
+            }
+        });
+        
+        // Инициализация при загрузке страницы
+        if (districtSelect.value) {
+            districtSelect.dispatchEvent(new Event('change'));
+        }
+    }
+});
+</script>
+
+{% endblock %}

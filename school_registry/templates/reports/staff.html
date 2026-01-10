@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Кадровый состав - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-people"></i> Отчет по кадровому составу</h1>
+        <div>
+            <button onclick="window.print()" class="btn btn-outline-secondary">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <button class="btn btn-success" onclick="exportReport('staff')">
+                <i class="bi bi-download"></i> Экспорт
+            </button>
+        </div>
+    </div>
+
+    <!-- Параметры отчета -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-gear"></i> Параметры отчета</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('report_staff') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Район</label>
+                    <select name="district_id" class="form-select">
+                        <option value="">Все районы</option>
+                        {% for district in districts %}
+                        <option value="{{ district.PK_District }}"
+                            {% if request.args.get('district_id')|string == district.PK_District|string %}selected{% endif %}>
+                            {{ district.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Тип школы</label>
+                    <select name="school_type_id" class="form-select">
+                        <option value="">Все типы</option>
+                        {% for type in school_types %}
+                        <option value="{{ type.PK_Type_of_School }}"
+                            {% if request.args.get('school_type_id')|string == type.PK_Type_of_School|string %}selected{% endif %}>
+                            {{ type.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Должность</label>
+                    <select name="position" class="form-select">
+                        <option value="">Все должности</option>
+                        <option value="директор" {% if request.args.get('position') == 'директор' %}selected{% endif %}>Директор</option>
+                        <option value="завуч" {% if request.args.get('position') == 'завуч' %}selected{% endif %}>Завуч</option>
+                        <option value="учитель" {% if request.args.get('position') == 'учитель' %}selected{% endif %}>Учитель</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Стаж от (лет)</label>
+                    <input type="number" name="min_experience" class="form-control" 
+                           value="{{ request.args.get('min_experience', '0') }}" min="0" max="50">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-filter"></i> Сформировать отчет
+                    </button>
+                    <a href="{{ url_for('report_staff') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Сбросить
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Общая статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Всего сотрудников</h6>
+                    <h2 class="mb-0">{{ total_employees }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Директоров</h6>
+                    <h2 class="mb-0">{{ directors_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Завучей</h6>
+                    <h2 class="mb-0">{{ deputies_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Учителей</h6>
+                    <h2 class="mb-0">{{ teachers_count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Распределение по должностям -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Распределение по должностям</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Должность</th>
+                                    <th>Количество</th>
+                                    <th>Процент</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in position_stats %}
+                                <tr>
+                                    <td><strong>{{ stat.position }}</strong></td>
+                                    <td>{{ stat.count }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                            data-width="{{ stat.percentage }}"
+                                            aria-valuenow="{{ stat.percentage }}" 
+                                            aria-valuemin="0" 
+                                            aria-valuemax="100">
+                                            {{ "%.1f"|format(stat.percentage) }}%
+                                        </div>
+                                    </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <!-- График можно добавить позже -->
+                    <div class="text-center py-5">
+                        <i class="bi bi-bar-chart display-1 text-muted"></i>
+                        <p class="mt-3">График распределения по должностям</p>
+                        <small class="text-muted">(Визуализация будет добавлена в следующей версии)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика по стажу -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Статистика по стажу работы</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6>Средний стаж</h6>
+                            <h3>{{ avg_experience }} лет</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6>Максимальный стаж</h6>
+                            <h3>{{ max_experience }} лет</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body text-center">
+                            <h6>Минимальный стаж</h6>
+                            <h3>{{ min_experience }} лет</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <h6>Распределение по стажу:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Стаж (лет)</th>
+                                <th>Количество сотрудников</th>
+                                <th>Процент</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for range in experience_ranges %}
+                            <tr>
+                                <td>{{ range.range }}</td>
+                                <td>{{ range.count }}</td>
+                                <td>
+                                <div class="progress" style="height: 15px;">
+                                <div class="progress-bar" role="progressbar" 
+                                    data-width="{{ range.percentage }}"
+                                    aria-valuenow="{{ range.percentage }}" 
+                                    aria-valuemin="0" 
+                                    aria-valuemax="100">
+                                </div>
+                            </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Детальная информация -->
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Детальная информация по сотрудникам</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>ФИО</th>
+                            <th>Должность</th>
+                            <th>Стаж (лет)</th>
+                            <th>Школа</th>
+                            <th>Населенный пункт</th>
+                            <th>Квалификация</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for employee in employees %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td><strong>{{ employee.Full_Name }}</strong></td>
+                            <td>
+                                {% set position_lower = employee.Position.lower() %}
+                                <span class="badge 
+                                    {% if 'директор' in position_lower %}bg-danger
+                                    {% elif 'завуч' in position_lower or 'заместитель' in position_lower %}bg-warning text-dark
+                                    {% else %}bg-info{% endif %}">
+                                    {{ employee.Position }}
+                                </span>
+                            </td>
+                            <td>{{ employee.Experience_Years or 'Нет данных' }}</td>
+                            <td>
+                                {% if employee.schools %}
+                                    {{ employee.schools[0].Official_Name }}
+                                {% else %}
+                                    Не назначен
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.schools and employee.schools[0].settlement %}
+                                    {{ employee.schools[0].settlement.Type }} {{ employee.schools[0].settlement.Name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ (employee.Qualifications[:50] if employee.Qualifications else '') }}{% if employee.Qualifications and employee.Qualifications|length > 50 %}...{% endif %}</small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function exportReport(reportType) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('format', 'excel');
+    window.location.href = `/export/report?${params.toString()}&report_type=${reportType}`;
+}
+
+// Инициализация прогресс-баров
+document.addEventListener('DOMContentLoaded', function() {
+    // Устанавливаем ширину прогресс-баров
+    document.querySelectorAll('.progress-bar[style*="width:"]').forEach(function(el) {
+        const style = el.getAttribute('style');
+        if (style.includes('width:')) {
+            // Уже установлено
+        }
+    });
+});
+</script>
+{% endblock %}

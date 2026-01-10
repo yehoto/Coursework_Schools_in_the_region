@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white text-center">
+                <h4 class="mb-0"><i class="bi bi-box-arrow-in-right"></i> Вход в систему</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('login') }}" class="needs-validation" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-person"></i>
+                            </span>
+                            {{ form.username(class="form-control", placeholder="Введите имя пользователя", required=true) }}
+                        </div>
+                        <div class="invalid-feedback">
+                            Пожалуйста, введите имя пользователя
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Пароль</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-key"></i>
+                            </span>
+                            {{ form.password(class="form-control", placeholder="Введите пароль", required=true) }}
+                        </div>
+                        <div class="invalid-feedback">
+                            Пожалуйста, введите пароль
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        {{ form.remember_me(class="form-check-input") }}
+                        <label class="form-check-label" for="remember_me">
+                            Запомнить меня
+                        </label>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        {{ form.submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <p class="mb-2">Нет аккаунта?</p>
+                    <a href="{{ url_for('register') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-person-plus"></i> Зарегистрироваться
+                    </a>
+                    
+                    <div class="mt-3">
+                        <a href="{{ url_for('auth_gosuslugi') }}" class="btn btn-outline-success">
+                            <i class="bi bi-passport"></i> Войти через госуслуги
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-footer text-center">
+                <small class="text-muted">
+                    По всем вопросам обращайтесь по телефону 8 (3852) 29-44-07
+                </small>
+            </div>
+        </div>
+        
+        <!-- Демо доступы -->
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Демо доступы</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-body py-2">
+                                <small>
+                                    <strong>Администратор:</strong> admin / admin123<br>
+                                    <strong>Родитель:</strong> parent / parent123<br>
+                                    <strong>Учитель:</strong> teacher / teacher123
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

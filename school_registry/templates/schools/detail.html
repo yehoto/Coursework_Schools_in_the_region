@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+
+{% block title %}{{ school.Official_Name }} - Реестр школ Алтайского края{% endblock %}
+
+{% block head %}
+<style>
+    .school-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 10px;
+    }
+    
+    .info-card {
+        transition: all 0.3s ease;
+    }
+    
+    .info-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .rating-large {
+        font-size: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Заголовок школы -->
+<div class="school-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="display-5 fw-bold mb-2">{{ school.Official_Name }}</h1>
+                
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge bg-light text-dark">
+                        <i class="bi bi-building"></i> {{ school.type_of_school.Name }}
+                    </span>
+                    <span class="badge bg-light text-dark">
+                        <i class="bi bi-geo-alt"></i> {{ school.settlement.Type }} {{ school.settlement.Name }}
+                    </span>
+                    {% if school.Number_of_Students %}
+                    <span class="badge bg-light text-dark">
+                        <i class="bi bi-people"></i> {{ school.Number_of_Students }} учащихся
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <!-- Рейтинг -->
+                <div class="d-flex align-items-center">
+                    <div class="rating-large me-3">
+                        {{ render_star_rating(avg_rating)|safe }}
+                    </div>
+                    <div>
+                        <div class="h4 mb-0">{{ avg_rating|round(1) }}/5.0</div>
+                        <small>{{ review_count }} {{ pluralize(review_count, 'отзыв', 'отзыва', 'отзывов') }}</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 text-end">
+                {% if current_user.is_authenticated and user_has_role('region_admin') %}
+                <a href="{{ url_for('edit_school', school_id=school.PK_School) }}"
+                   class="btn btn-light btn-lg">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row">
+        <!-- Левая колонка - основная информация -->
+        <div class="col-lg-8">
+            <!-- Контактная информация -->
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-telephone"></i> Контактная информация</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6><i class="bi bi-geo-alt text-primary"></i> Адрес</h6>
+                            <p class="mb-0">{{ school.Legal_Adress }}</p>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <h6><i class="bi bi-telephone text-primary"></i> Телефон</h6>
+                            <p class="mb-0">{{ school.Phone }}</p>
+                        </div>
+                        
+                        {% if school.Email %}
+                        <div class="col-md-6 mb-3">
+                            <h6><i class="bi bi-envelope text-primary"></i> Email</h6>
+                            <p class="mb-0">{{ school.Email }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if school.Website %}
+                        <div class="col-md-6 mb-3">
+                            <h6><i class="bi bi-globe text-primary"></i> Веб-сайт</h6>
+                            <p class="mb-0">
+                                <a href="{{ school.Website }}" target="_blank">{{ school.Website }}</a>
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Основные сведения -->
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Основные сведения</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% if school.Founding_Date %}
+                        <div class="col-md-6 mb-3">
+                            <h6>Дата основания</h6>
+                            <p class="mb-0">{{ school.Founding_Date.strftime('%d.%m.%Y') }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if school.Number_of_Students %}
+                        <div class="col-md-6 mb-3">
+                            <h6>Количество учащихся</h6>
+                            <p class="mb-0">{{ school.Number_of_Students }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if school.type_of_school %}
+                        <div class="col-md-6 mb-3">
+                            <h6>Тип образовательной организации</h6>
+                            <p class="mb-0">{{ school.type_of_school.Name }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if school.settlement %}
+                        <div class="col-md-6 mb-3">
+                            <h6>Место нахождения</h6>
+                            <p class="mb-0">
+                                {{ school.settlement.district.Name }},
+                                {{ school.settlement.Type }} {{ school.settlement.Name }}
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if school.License %}
+                    <div class="mt-3">
+                        <h6>Лицензия</h6>
+                        <p class="mb-0">{{ school.License }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if school.Accreditation %}
+                    <div class="mt-3">
+                        <h6>Аккредитация</h6>
+                        <p class="mb-0">{{ school.Accreditation }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Инфраструктура -->
+            {% if school.infrastructure %}
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-building"></i> Инфраструктура</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for infra in school.infrastructure %}
+                        <div class="col-md-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" checked disabled>
+                                <label class="form-check-label">
+                                    {{ infra.Name }}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Отзывы -->
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Отзывы ({{ review_count }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if reviews %}
+                    {% for review in reviews %}
+                    <div class="mb-3 pb-3 border-bottom">
+                        <div class="d-flex justify-content-between mb-2">
+                            <div>
+                                <strong>{{ review.Author }}</strong>
+                                <small class="text-muted ms-2">{{ review.Date.strftime('%d.%m.%Y') }}</small>
+                            </div>
+                            <div class="text-warning">
+                                {{ render_star_rating(review.Rating)|safe }}
+                            </div>
+                        </div>
+                        <p class="mb-0">{{ review.Text }}</p>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-chat-left-text display-1 text-muted"></i>
+                        <h5 class="mt-3">Пока нет отзывов</h5>
+                        <p class="text-muted">Будьте первым, кто оставит отзыв об этой школе</p>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Форма добавления отзыва -->
+                    {% if current_user.is_authenticated %}
+                    <div class="mt-4">
+                        <h6>Добавить отзыв</h6>
+                        <form method="POST" action="{{ url_for('add_review', school_id=school.PK_School) }}">
+                            {{ form.hidden_tag() }}
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Оценка</label>
+                                <div class="rating-input mb-2">
+                                    {% for i in range(5, 0, -1) %}
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="radio"
+                                               name="rating" id="rating{{ i }}" value="{{ i }}"
+                                               {% if i == 5 %}checked{% endif %}>
+                                        <label class="form-check-label" for="rating{{ i }}">
+                                            {{ i }} <i class="bi bi-star"></i>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Текст отзыва</label>
+                                <textarea name="text" class="form-control" rows="3"
+                                          placeholder="Напишите ваш отзыв..." required></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-send"></i> Отправить отзыв
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Чтобы оставить отзыв, пожалуйста,
+                        <a href="{{ url_for('login') }}">войдите в систему</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Правая колонка - дополнительная информация -->
+        <div class="col-lg-4">
+            <!-- Карта -->
+                    <div class="card mb-4 info-card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Местоположение</h5>
+            </div>
+            <div class="card-body text-center py-4">
+                <div class="mb-3">
+                    <i class="bi bi-geo-alt-fill display-4 text-danger"></i>
+                </div>
+                <p class="mb-4">
+                    <strong>Адрес:</strong><br>
+                    {{ school.Legal_Adress }}
+                </p>
+                <a href="https://yandex.ru/maps/?text={{ school.Legal_Adress|urlencode }}"
+                target="_blank" class="btn btn-danger w-100">
+                    <i class="bi bi-map"></i> Открыть в Яндекс.Картах
+                </a>
+            </div>
+        </div>
+                    
+            <!-- Сотрудники -->
+            {% if employees %}
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> Сотрудники</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        {% for employee in employees %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ employee.Full_Name }}</h6>
+                                <small>{{ employee.Position }}</small>
+                            </div>
+                            {% if employee.Qualifications %}
+                            <p class="mb-1 small text-muted">{{ employee.Qualifications|truncate(50) }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if employees|length > 10 %}
+                    <div class="text-center mt-3">
+                        <a href="#" class="btn btn-sm btn-outline-secondary">
+                            Показать всех сотрудников ({{ school.employees|length }})
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Программы -->
+            {% if programs %}
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-book"></i> Образовательные программы</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        {% for program in programs %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ program.Name }}</h6>
+                                <small class="text-muted">{{ program.Type }}</small>
+                            </div>
+                            <p class="mb-1 small">
+                                <code>{{ program.Code_Designation }}</code>
+                            </p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if programs|length > 10 %}
+                    <div class="text-center mt-3">
+                        <a href="#" class="btn btn-sm btn-outline-dark">
+                            Все программы ({{ school.programs|length }})
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Действия -->
+            <div class="card info-card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-lightning"></i> Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="tel:{{ school.Phone }}" class="btn btn-outline-primary">
+                            <i class="bi bi-telephone"></i> Позвонить в школу
+                        </a>
+                        
+                        {% if school.Email %}
+                        <a href="mailto:{{ school.Email }}" class="btn btn-outline-success">
+                            <i class="bi bi-envelope"></i> Написать email
+                        </a>
+                        {% endif %}
+                        
+                        <a href="{{ url_for('export_schools') }}" class="btn btn-outline-info">
+                            <i class="bi bi-download"></i> Экспорт данных
+                        </a>
+                        
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard('{{ school.Legal_Adress }}')">
+                            <i class="bi bi-clipboard"></i> Копировать адрес
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            alert('Адрес скопирован в буфер обмена');
+        });
+    }
+    
+    // Загрузка данных школы через API
+    fetch('/api/school/{{ school.PK_School }}')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Данные школы:', data);
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки данных:', error);
+        });
+</script>
+{% endblock %}

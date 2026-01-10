@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Результаты поиска - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Результаты поиска</h1>
+            <p class="text-muted mb-0">
+                {% if schools.total %}
+                Найдено {{ schools.total }} школ по запросу "{{ query }}"
+                {% else %}
+                По запросу "{{ query }}" ничего не найдено
+                {% endif %}
+            </p>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Вернуться к списку
+        </a>
+    </div>
+
+    {% if schools.total %}
+    <div class="row row-cols-1 row-cols-md-2 g-4">
+        {% for school in schools.items %}
+        <div class="col">
+            <div class="card h-100 shadow-sm school-card">
+                <div class="card-body">
+                    <h5 class="card-title mb-2">{{ school.Official_Name }}</h5>
+                    <h6 class="card-subtitle mb-3 text-muted">
+                        <i class="bi bi-building"></i>
+                        {{ school.type_of_school.Name if school.type_of_school else 'Тип не указан' }}
+                    </h6>
+                    <p class="card-text">
+                        <i class="bi bi-geo-alt"></i>
+                        {{ school.Legal_Adress[:80] }}{% if school.Legal_Adress|length > 80 %}...{% endif %}
+                    </p>
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-telephone"></i> {{ school.Phone }}
+                        </small>
+                    </div>
+                    {% if school.Number_of_Students %}
+                    <div class="mb-3">
+                        <span class="badge bg-info">
+                            <i class="bi bi-people"></i> {{ school.Number_of_Students }} учащихся
+                        </span>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('school_detail', school_id=school.PK_School) }}"
+                           class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-info-circle"></i> Подробнее
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if schools.pages > 1 %}
+    <nav aria-label="Навигация по страницам" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if schools.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('search_schools', page=schools.prev_num, q=query) }}">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+            {% endif %}
+
+            {% for page_num in schools.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if page_num %}
+            <li class="page-item {% if page_num == schools.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('search_schools', page=page_num, q=query) }}">
+                    {{ page_num }}
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">...</span>
+            </li>
+            {% endif %}
+            {% endfor %}
+
+            {% if schools.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('search_schools', page=schools.next_num, q=query) }}">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-search display-1 text-muted"></i>
+        </div>
+        <h3 class="h4 mb-3">Ничего не найдено</h3>
+        <p class="text-muted mb-4">
+            Попробуйте изменить критерии поиска
+        </p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="bi bi-arrow-clockwise"></i> Вернуться к списку школ
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

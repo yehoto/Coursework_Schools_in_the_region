@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Панель управления - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h2 mb-4">Панель управления</h1>
+    
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Школы</h5>
+                    <h2 class="mb-0">{{ stats.total_schools }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Учащиеся</h5>
+                    <h2 class="mb-0">{{ stats.total_students }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Отзывы</h5>
+                    <h2 class="mb-0">{{ stats.total_reviews }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">На модерации</h5>
+                    <h2 class="mb-0">{{ pending_reviews }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('admin_schools') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-building"></i> Управление школами
+                        </a>
+                        <a href="{{ url_for('admin_reviews') }}" class="btn btn-outline-warning">
+                            <i class="bi bi-chat-left-text"></i> Модерация отзывов
+                        </a>
+                        <a href="{{ url_for('import_data') }}" class="btn btn-outline-success">
+                            <i class="bi bi-upload"></i> Импорт данных
+                        </a>
+                        {% if user_has_role('super_admin') %}
+                        <a href="{{ url_for('create_backup_route') }}" class="btn btn-outline-danger">
+                            <i class="bi bi-database"></i> Создать резервную копию
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Последние действия</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_audits %}
+                    <div class="list-group list-group-flush">
+                        {% for audit in recent_audits %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <small>{{ audit.user.username if audit.user else 'Система' }}</small>
+                                <small class="text-muted">{{ audit.timestamp.strftime('%H:%M') }}</small>
+                            </div>
+                            <small>{{ audit.action }} - {{ audit.table_name }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Нет записей</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

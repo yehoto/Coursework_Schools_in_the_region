@@ -3,18 +3,19 @@
 {% block title %}История изменений - {{ school.Official_Name }}{% endblock %}
 
 {% block content %}
+
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>
             <i class="bi bi-clock-history"></i> История изменений
         </h1>
         <div>
-            <a href="{{ url_for('edit_school', school_id=school.PK_School) }}" 
-               class="btn btn-warning">
+            <a href="{{ url_for('edit_school', school_id=school.PK_School) }}"
+                class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Редактировать
             </a>
-            <a href="{{ url_for('school_detail', school_id=school.PK_School) }}" 
-               class="btn btn-outline-secondary">
+            <a href="{{ url_for('school_detail', school_id=school.PK_School) }}"
+                class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Назад к школе
             </a>
         </div>
@@ -40,9 +41,9 @@
                     </p>
                     <p><strong>Статус:</strong>
                         {% if school.is_active %}
-                            <span class="badge bg-success">Активна</span>
+                        <span class="badge bg-success">Активна</span>
                         {% else %}
-                            <span class="badge bg-danger">Неактивна</span>
+                        <span class="badge bg-danger">Неактивна</span>
                         {% endif %}
                     </p>
                 </div>
@@ -50,70 +51,276 @@
         </div>
     </div>
 
-    {% if versions %}
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-list-check"></i> История изменений ({{ versions|length }} записей)
+    <!-- История изменений -->
+{% if versions %}
+<div class="card">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-list-check"></i> История изменений ({{ versions|length }} записей)
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Дата/Время</th>
+                        <th>Действие</th>
+                        <th>Пользователь</th>
+                        <th>Изменения</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for version in versions %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            <small>
+                                {% if version[4] %}
+                                    {{ version[4].strftime('%d.%m.%Y %H:%M:%S') }}
+                                {% else %}
+                                    <span class="text-muted">Нет даты</span>
+                                {% endif %}
+                            </small>
+                        </td>
+                        <td>
+                            {% if version[6] == 'create' %}
+                                <span class="badge bg-success">Создание</span>
+                            {% elif version[6] == 'update' %}
+                                <span class="badge bg-warning text-dark">Изменение</span>
+                            {% elif version[6] == 'delete' %}
+                                <span class="badge bg-danger">Удаление</span>
+                            {% elif version[6] == 'rollback' %}
+                                <span class="badge bg-secondary">Откат</span>
+                            {% else %}
+                                <span class="badge bg-info">{{ version[6] }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if version[7] %}
+                                {{ version[7] }}
+                            {% elif version[5] %}
+                                ID: {{ version[5] }}
+                            {% else %}
+                                <span class="text-muted">Система</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-info"
+                                data-bs-toggle="modal"
+                                data-bs-target="#versionModal{{ loop.index }}">
+                                <i class="bi bi-eye"></i> Показать изменения
+                            </button>
+                        </td>
+                        <td>
+                            {% if version[6] == 'update' and current_user.has_role('super_admin') and loop.index > 1 %}
+                            <form method="POST"
+                                action="{{ url_for('rollback_version', version_id=version[0]) }}?school_id={{ school.PK_School }}"
+                                class="d-inline"
+                                onsubmit="return confirm('Вы уверены, что хотите откатиться к этой версии?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Откат
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> История изменений для этой школы пока пуста.
+</div>
+{% endif %}
+</div>
+
+<!-- Модальные окна для просмотра изменений -->
+{% for version in versions %}
+<div class="modal fade" id="versionModal{{ loop.index }}" tabindex="-1"
+    aria-labelledby="versionModalLabel{{ loop.index }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="versionModalLabel{{ loop.index }}">
+                    {% if version[6] == 'create' %}
+                    Создание
+                    {% elif version[6] == 'update' %}
+                    Изменение
+                    {% elif version[6] == 'delete' %}
+                    Удаление
+                    {% elif version[6] == 'rollback' %}
+                    Откат
+                    {% else %}
+                    {{ version[6] }}
+                    {% endif %}
+                    от {{ version[4].strftime('%d.%m.%Y %H:%M') if version[4] else '' }}
                 </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
             </div>
-            <div class="card-body">
+            <div class="modal-body">
+                {% set before_data = version[2]|fromjson if version[2] else {} %}
+                {% set after_data = version[3]|fromjson if version[3] else {} %}
+                
+                <!-- Улучшенное отображение измененных полей -->
+                {% if version[6] == 'update' and before_data and after_data %}
+                <h6>Измененные поля:</h6>
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-sm table-bordered">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Дата/Время</th>
-                                <th>Действие</th>
-                                <th>Пользователь</th>
-                                <th>Изменения</th>
-                                <th>Действия</th>
+                                <th>Поле</th>
+                                <th>Было</th>
+                                <th>Стало</th>
+                                <th>Тип изменения</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for version in versions %}
+                            {% set changed_count = 0 %}
+                            
+                            <!-- Собираем все уникальные ключи -->
+                            {% set all_keys = [] %}
+                            {% for key in before_data %}
+                                {% if key not in all_keys %}
+                                    {% set _ = all_keys.append(key) %}
+                                {% endif %}
+                            {% endfor %}
+                            {% for key in after_data %}
+                                {% if key not in all_keys %}
+                                    {% set _ = all_keys.append(key) %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            <!-- Показываем только действительно измененные поля -->
+                            {% for key in all_keys %}
+                                {% set before_value = before_data.get(key) %}
+                                {% set after_value = after_data.get(key) %}
+                                
+                                {% set is_changed = false %}
+                                {% set change_type = '' %}
+                                
+                                <!-- Определяем тип изменения -->
+                                {% if before_value != after_value %}
+                                    {% if before_value in [None, ''] and after_value not in [None, ''] %}
+                                        {% set change_type = 'added' %}
+                                        {% set is_changed = true %}
+                                    {% elif before_value not in [None, ''] and after_value in [None, ''] %}
+                                        {% set change_type = 'removed' %}
+                                        {% set is_changed = true %}
+                                    {% elif before_value != after_value %}
+                                        {% set change_type = 'modified' %}
+                                        {% set is_changed = true %}
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {% if is_changed %}
+                                    {% set changed_count = changed_count + 1 %}
+                                    <tr>
+                                        <td><strong>{{ get_field_display_name(key) }}</strong></td>
+                                        <td>
+                                            {% if before_value is none or before_value == '' %}
+                                                <span class="text-muted"><i>(пусто)</i></span>
+                                            {% elif key in ['PK_Type_of_School', 'PK_Settlement'] %}
+                                                <!-- Преобразуем ID в названия -->
+                                                {% if key == 'PK_Type_of_School' %}
+                                                    {% set type_obj = get_school_type_by_id(before_value) %}
+                                                    {{ type_obj.Name if type_obj else before_value }}
+                                                {% elif key == 'PK_Settlement' %}
+                                                    {% set settlement_obj = get_settlement_by_id(before_value) %}
+                                                    {{ settlement_obj.Name if settlement_obj else before_value }}
+                                                {% endif %}
+                                            {% elif key == 'is_active' %}
+                                                {% if before_value %}
+                                                    <span class="badge bg-success">Активна</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Неактивна</span>
+                                                {% endif %}
+                                            {% else %}
+                                                {{ before_value }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if after_value is none or after_value == '' %}
+                                                <span class="text-muted"><i>(пусто)</i></span>
+                                            {% elif key in ['PK_Type_of_School', 'PK_Settlement'] %}
+                                                <!-- Преобразуем ID в названия -->
+                                                {% if key == 'PK_Type_of_School' %}
+                                                    {% set type_obj = get_school_type_by_id(after_value) %}
+                                                    {{ type_obj.Name if type_obj else after_value }}
+                                                {% elif key == 'PK_Settlement' %}
+                                                    {% set settlement_obj = get_settlement_by_id(after_value) %}
+                                                    {{ settlement_obj.Name if settlement_obj else after_value }}
+                                                {% endif %}
+                                            {% elif key == 'is_active' %}
+                                                {% if after_value %}
+                                                    <span class="badge bg-success">Активна</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Неактивна</span>
+                                                {% endif %}
+                                            {% else %}
+                                                {{ after_value }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if change_type == 'added' %}
+                                                <span class="badge bg-success">Добавлено</span>
+                                            {% elif change_type == 'removed' %}
+                                                <span class="badge bg-danger">Удалено</span>
+                                            {% elif change_type == 'modified' %}
+                                                <span class="badge bg-warning">Изменено</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if changed_count == 0 %}
                             <tr>
-                                <td>{{ loop.index }}</td>
+                                <td colspan="4" class="text-center text-muted">Изменений не обнаружено</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% elif version[6] == 'create' %}
+                <h6>Созданная запись:</h6>
+                {% if after_data %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Поле</th>
+                                <th>Значение</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in after_data.items() %}
+                            <tr>
+                                <td><strong>{{ get_field_display_name(key) }}</strong></td>
                                 <td>
-                                    <small>
-                                        {{ version.changed_at.strftime('%d.%m.%Y %H:%M:%S') }}
-                                    </small>
-                                </td>
-                                <td>
-                                    {% if version.action == 'create' %}
-                                        <span class="badge bg-success">Создание</span>
-                                    {% elif version.action == 'update' %}
-                                        <span class="badge bg-warning text-dark">Изменение</span>
-                                    {% elif version.action == 'delete' %}
-                                        <span class="badge bg-danger">Удаление</span>
-                                    {% elif version.action == 'rollback' %}
-                                        <span class="badge bg-secondary">Откат</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if version.user %}
-                                        {{ version.user.username }}
+                                    {% if value is none or value == '' %}
+                                        <span class="text-muted"><i>(пусто)</i></span>
+                                    {% elif key in ['PK_Type_of_School', 'PK_Settlement'] %}
+                                        {% if key == 'PK_Type_of_School' %}
+                                            {% set type_obj = get_school_type_by_id(value) %}
+                                            {{ type_obj.Name if type_obj else value }}
+                                        {% elif key == 'PK_Settlement' %}
+                                            {% set settlement_obj = get_settlement_by_id(value) %}
+                                            {{ settlement_obj.Name if settlement_obj else value }}
+                                        {% endif %}
+                                    {% elif key == 'is_active' %}
+                                        {% if value %}
+                                            <span class="badge bg-success">Активна</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Неактивна</span>
+                                        {% endif %}
                                     {% else %}
-                                        <span class="text-muted">Система</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-outline-info"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#versionModal{{ version.pk_version }}">
-                                        <i class="bi bi-eye"></i> Показать изменения
-                                    </button>
-                                </td>
-                                <td>
-                                    {% if version.action == 'update' and current_user.has_role('super_admin') and loop.index > 1 %}
-                                        <form method="POST"
-                                              action="{{ url_for('rollback_version', version_id=version.pk_version) }}"
-                                              class="d-inline"
-                                              onsubmit="return confirm('Вы уверены, что хотите откатиться к этой версии?')">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">
-                                                <i class="bi bi-arrow-counterclockwise"></i> Откат
-                                            </button>
-                                        </form>
+                                        {{ value }}
                                     {% endif %}
                                 </td>
                             </tr>
@@ -121,103 +328,107 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-    {% else %}
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> История изменений для этой школы пока пуста.
-        </div>
-    {% endif %}
-</div>
-
-<!-- Модальные окна для просмотра изменений -->
-{% for version in versions %}
-<div class="modal fade" id="versionModal{{ version.pk_version }}" tabindex="-1" aria-labelledby="versionModalLabel{{ version.pk_version }}" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="versionModalLabel{{ version.pk_version }}">
-                    {% if version.action == 'create' %}
-                        Создание
-                    {% elif version.action == 'update' %}
-                        Изменение
-                    {% elif version.action == 'delete' %}
-                        Удаление
-                    {% elif version.action == 'rollback' %}
-                        Откат
-                    {% else %}
-                        {{ version.action }}
-                    {% endif %}
-                    от {{ version.changed_at.strftime('%d.%m.%Y %H:%M') }}
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>До изменения:</h6>
-                        <div class="card">
-                            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
-                                {% if version.data_before %}
-                                    {% set changed_fields = [] %}
-                                    {% for key, before_value in version.data_before.items() %}
-                                        {% set after_value = version.data_after.get(key) if version.data_after else none %}
-                                        {% if before_value != after_value %}
-                                            {% set _ = changed_fields.append(key) %}
-                                            <p>
-                                                <strong>{{ key }}:</strong> 
-                                                {% if before_value is none or before_value == '' %}
-                                                    <span class="text-muted">(пусто)</span>
-                                                {% else %}
-                                                    {{ before_value }}
-                                                {% endif %}
-                                            </p>
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% if changed_fields|length == 0 %}
-                                        <p class="text-muted">Изменений не обнаружено</p>
+                {% else %}
+                <p class="text-muted">Нет данных</p>
+                {% endif %}
+                {% elif version[6] == 'delete' %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Запись была удалена.
+                </div>
+                {% if before_data %}
+                <h6>Удаленные данные:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Поле</th>
+                                <th>Значение</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in before_data.items() %}
+                            <tr>
+                                <td><strong>{{ get_field_display_name(key) }}</strong></td>
+                                <td>
+                                    {% if value is none or value == '' %}
+                                        <span class="text-muted"><i>(пусто)</i></span>
+                                    {% else %}
+                                        {{ value }}
                                     {% endif %}
-                                {% else %}
-                                    <p class="text-muted">Нет данных (создание записи)</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                {% elif version[6] == 'rollback' %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Выполнен откат к предыдущей версии.
+                </div>
+                {% if before_data and after_data %}
+                <h6>Восстановленные поля:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Поле</th>
+                                <th>Было</th>
+                                <th>Стало</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key in before_data %}
+                                {% if key in after_data %}
+                                    {% set before_value = before_data[key] %}
+                                    {% set after_value = after_data[key] %}
+                                    {% if before_value != after_value %}
+                                    <tr>
+                                        <td><strong>{{ get_field_display_name(key) }}</strong></td>
+                                        <td>
+                                            {% if before_value is none or before_value == '' %}
+                                                <span class="text-muted"><i>(пусто)</i></span>
+                                            {% else %}
+                                                {{ before_value }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if after_value is none or after_value == '' %}
+                                                <span class="text-muted"><i>(пусто)</i></span>
+                                            {% else %}
+                                                {{ after_value }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
                                 {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted">Нет данных для отображения</p>
+                {% endif %}
+                
+                <!-- Детальная информация -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">Детальная информация</h6>
                             </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>После изменения:</h6>
-                        <div class="card">
-                            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
-                                {% if version.data_after %}
-                                    {% set changed_fields = [] %}
-                                    {% for key, after_value in version.data_after.items() %}
-                                        {% set before_value = version.data_before.get(key) if version.data_before else none %}
-                                        {% if before_value != after_value %}
-                                            {% set _ = changed_fields.append(key) %}
-                                            <p>
-                                                <strong>{{ key }}:</strong> 
-                                                {% if after_value is none or after_value == '' %}
-                                                    <span class="text-muted">(пусто)</span>
-                                                {% else %}
-                                                    {{ after_value }}
-                                                {% endif %}
-                                            </p>
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% for key, before_value in version.data_before.items() %}
-                                        {% if key not in version.data_after %}
-                                            {% set _ = changed_fields.append(key) %}
-                                            <p>
-                                                <strong>{{ key }}:</strong> 
-                                                <span class="text-danger">(удалено)</span>
-                                            </p>
-                                        {% endif %}
-                                    {% endfor %}
-                                    {% if changed_fields|length == 0 %}
-                                        <p class="text-muted">Изменений не обнаружено</p>
+                            <div class="card-body">
+                                <p><strong>Действие:</strong> {{ version[6] }}</p>
+                                <p><strong>Дата:</strong> {{ version[4].strftime('%d.%m.%Y %H:%M:%S') if version[4] else 'Нет даты' }}</p>
+                                <p><strong>Пользователь:</strong>
+                                    {% if version[5] %}
+                                        {% set user = get_user_by_id(version[5]) %}
+                                        {{ user.username if user else 'ID: ' ~ version[5] }}
+                                    {% else %}
+                                        Система
                                     {% endif %}
-                                {% else %}
-                                    <p class="text-muted">Нет данных (удаление записи)</p>
-                                {% endif %}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -232,40 +443,46 @@
 {% endfor %}
 
 <style>
-    .table-hover tbody tr {
-        transition: background-color 0.2s ease;
+.table-hover tbody tr {
+    transition: background-color 0.2s ease;
+}
+.modal {
+    backdrop-filter: blur(3px);
+}
+.modal-content {
+    animation: modalFadeIn 0.3s ease;
+}
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
     }
-    .modal {
-        backdrop-filter: blur(3px);
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
-    .modal-content {
-        animation: modalFadeIn 0.3s ease;
-    }
-    @keyframes modalFadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(-20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
+}
+.table-bordered td, .table-bordered th {
+    vertical-align: middle;
+}
+.table-bordered td {
+    word-break: break-word;
+}
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var modals = document.querySelectorAll('.modal');
-        modals.forEach(function(modal) {
-            new bootstrap.Modal(modal);
-        });
-
-        var showButtons = document.querySelectorAll('[data-bs-toggle="modal"]');
-        showButtons.forEach(function(button) {
-            button.addEventListener('click', function(e) {
-                e.stopPropagation();
-            });
+document.addEventListener('DOMContentLoaded', function() {
+    var modals = document.querySelectorAll('.modal');
+    modals.forEach(function(modal) {
+        new bootstrap.Modal(modal);
+    });
+    var showButtons = document.querySelectorAll('[data-bs-toggle="modal"]');
+    showButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            e.stopPropagation();
         });
     });
+});
 </script>
+
 {% endblock %}

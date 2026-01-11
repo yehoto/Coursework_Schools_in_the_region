@@ -1,58 +1,112 @@
+<!-- templates/reports/violations.html -->
 {% extends "base.html" %}
 
-{% block title %}Сводка по нарушениям - Реестр школ Алтайского края{% endblock %}
+{% block title %}Отчет по нарушениям Рособрнадзора - Реестр школ Алтайского края{% endblock %}
 
 {% block content %}
 <div class="container">
-    <h1 class="mb-4"><i class="bi bi-exclamation-triangle"></i> Сводка по нарушениям Рособрнадзора</h1>
-    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-exclamation-triangle"></i> Отчет по нарушениям Рособрнадзора</h1>
+        <div>
+            <button onclick="window.print()" class="btn btn-outline-secondary">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <a href="{{ url_for('export_report', report_type='violations') }}" class="btn btn-success">
+                <i class="bi bi-download"></i> Экспорт
+            </a>
+        </div>
+    </div>
+
     <!-- Фильтры -->
     <div class="card mb-4">
         <div class="card-header bg-danger text-white">
             <h5 class="mb-0"><i class="bi bi-funnel"></i> Параметры отчета</h5>
         </div>
         <div class="card-body">
-            <form method="GET" class="row g-3">
-                <div class="col-md-4">
+            <form method="GET" action="{{ url_for('report_violations') }}" class="row g-3">
+                <div class="col-md-3">
                     <label class="form-label">Район</label>
                     <select name="district_id" class="form-select">
                         <option value="">Все районы</option>
                         {% for district in districts %}
-                        <option value="{{ district.PK_District }}">{{ district.Name }}</option>
+                        <option value="{{ district.PK_District }}"
+                                {% if request.args.get('district_id')|string == district.PK_District|string %}selected{% endif %}>
+                            {{ district.Name }}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Год</label>
-                    <input type="number" name="year" class="form-control" value="{{ year }}">
+                <div class="col-md-3">
+                    <label class="form-label">Тип школы</label>
+                    <select name="school_type_id" class="form-select">
+                        <option value="">Все типы</option>
+                        {% for type in school_types %}
+                        <option value="{{ type.PK_Type_of_School }}"
+                                {% if request.args.get('school_type_id')|string == type.PK_Type_of_School|string %}selected{% endif %}>
+                            {{ type.Name }}
+                        </option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label">Тип нарушения</label>
-                    <input type="text" name="violation_type" class="form-control" placeholder="Например: СанПиН">
+                <div class="col-md-3">
+                    <label class="form-label">Статус нарушений</label>
+                    <select name="status" class="form-select">
+                        <option value="all" {% if request.args.get('status') == 'all' %}selected{% endif %}>Все проверки</option>
+                        <option value="with_violations" {% if request.args.get('status') == 'with_violations' %}selected{% endif %}>С нарушениями</option>
+                        <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>Не устранены</option>
+                        <option value="resolved" {% if request.args.get('status') == 'resolved' %}selected{% endif %}>Устранены</option>
+                    </select>
                 </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-danger">Применить фильтры</button>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-danger w-100">
+                        <i class="bi bi-filter"></i> Сформировать отчет
+                    </button>
                 </div>
             </form>
         </div>
     </div>
-    
+
     <!-- Статистика -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card bg-danger text-white">
                 <div class="card-body text-center">
-                    <h6>Всего нарушений</h6>
-                    <h2>{{ total_violations }}</h2>
+                    <h6 class="card-title">Всего проверок</h6>
+                    <h2 class="mb-0">{{ total_inspections }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6 class="card-title">С нарушениями</h6>
+                    <h2 class="mb-0">{{ with_violations }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Устранены</h6>
+                    <h2 class="mb-0">{{ resolved }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6 class="card-title">Не устранены</h6>
+                    <h2 class="mb-0">{{ active }}</h2>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <!-- Таблица нарушений -->
     <div class="card">
         <div class="card-header bg-dark text-white">
-            <h5 class="mb-0">Список нарушений</h5>
+            <h5 class="mb-0"><i class="bi bi-table"></i> Список нарушений</h5>
         </div>
         <div class="card-body">
             {% if inspections %}
@@ -60,29 +114,45 @@
                 <table class="table table-hover">
                     <thead>
                         <tr>
-                            <th>Дата</th>
+                            <th>#</th>
+                            <th>Дата проверки</th>
+                            <th>Номер предписания</th>
                             <th>Школа</th>
                             <th>Тип нарушения</th>
-                            <th>Описание</th>
+                            <th>Результат</th>
                             <th>Статус</th>
+                            <th>Дата устранения</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for inspection in inspections %}
                         <tr>
+                            <td>{{ loop.index }}</td>
                             <td>{{ inspection.Date.strftime('%d.%m.%Y') }}</td>
+                            <td><strong>{{ inspection.Prescription_Number or 'Без номера' }}</strong></td>
                             <td>
                                 <a href="{{ url_for('school_detail', school_id=inspection.PK_School) }}">
-                                    {{ inspection.school.Official_Name }}
+                                    {{ inspection.school.Official_Name[:50] }}{% if inspection.school.Official_Name|length > 50 %}...{% endif %}
                                 </a>
                             </td>
-                            <td>{{ inspection.violation_type or 'Не указан' }}</td>
-                            <td>{{ inspection.description[:100] }}...</td>
+                            <td>{{ inspection.violation_type[:50] if inspection.violation_type else 'Не указан' }}</td>
+                            <td>{{ inspection.Result[:100] if inspection.Result else 'Нет описания' }}{% if inspection.Result and inspection.Result|length > 100 %}...{% endif %}</td>
                             <td>
-                                {% if inspection.is_resolved %}
-                                <span class="badge bg-success">Устранено</span>
+                                {% if inspection.has_violations %}
+                                    {% if inspection.is_resolved %}
+                                        <span class="badge bg-success">Устранено</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Не устранено</span>
+                                    {% endif %}
                                 {% else %}
-                                <span class="badge bg-warning">На рассмотрении</span>
+                                    <span class="badge bg-info">Нарушений нет</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if inspection.resolution_date %}
+                                    {{ inspection.resolution_date.strftime('%d.%m.%Y') }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -92,7 +162,8 @@
             </div>
             {% else %}
             <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Нарушений не найдено
+                <i class="bi bi-info-circle"></i>
+                По выбранным критериям нарушения не найдены.
             </div>
             {% endif %}
         </div>

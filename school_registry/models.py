@@ -317,3 +317,24 @@ class DataVersion(db.Model):
                     'after': after
                 })
         return changes
+    
+# Найти определение модели SchoolVersion и исправить ForeignKey
+class SchoolVersion(db.Model):
+    __tablename__ = 'school_versions'
+    
+    pk_version = db.Column(db.Integer, primary_key=True)
+    pk_school = db.Column(db.Integer, db.ForeignKey('School.PK_School'), nullable=False)
+    version_number = db.Column(db.Integer, nullable=False)
+    action = db.Column(db.String(50), nullable=False)
+    old_data = db.Column(db.Text)
+    new_data = db.Column(db.Text)
+    changed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # ИСПРАВЬТЕ ЭТИ СТРОКИ:
+    # school = db.relationship('School', backref=db.backref('versions', lazy='dynamic'))
+    # user = db.relationship('User', backref=db.backref('versions', lazy='dynamic'))
+    
+    # СТАЛО:
+    school = db.relationship('School', backref=db.backref('school_versions', lazy='dynamic'))
+    user = db.relationship('User', backref=db.backref('school_versions_created', lazy='dynamic'))

@@ -100,6 +100,26 @@
                 </div>
             </div>
         </div>
+          <!-- ВСТАВЬТЕ ЗДЕСЬ КАРТОЧКУ ПРО НАРУШЕНИЯ -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Нарушения Рособрнадзора</h5>
+            </div>
+            <div class="card-body">
+                <p>Сводный отчет по нарушениям, выявленным в ходе проверок.</p>
+                <ul class="mb-3">
+                    <li>Список нарушений по школам</li>
+                    <li>Статистика по типам нарушений</li>
+                    <li>Статус устранения</li>
+                </ul>
+                <a href="{{ url_for('report_violations') }}" class="btn btn-danger">
+                    <i class="bi bi-file-text"></i> Сформировать отчет
+                </a>
+            </div>
+        </div>
+    </div>
+    <!-- КОНЕЦ ВСТАВКИ -->
     </div>
 
     <!-- Блок со стандартными отчетами из ТЗ УДАЛЕН -->

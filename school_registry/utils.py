@@ -15,31 +15,46 @@ from models import db, School, Review
 
 def create_version(table_name, record_id, action, data_before, data_after, user_id):
     """Создание записи о версии данных"""
-    from models import DataVersion, db
+    from models import SchoolVersion, db  # Импортируем SchoolVersion, а не DataVersion
     from datetime import datetime, timezone
+    import json
     
-    version = DataVersion(
-        table_name=table_name,
-        record_id=record_id,
+    print(f"DEBUG: create_version вызвана для {table_name} {record_id}, действие: {action}")
+    
+    if data_before:
+        data_before_json = json.dumps(data_before, ensure_ascii=False, default=str)
+    else:
+        data_before_json = None
+        
+    if data_after:
+        data_after_json = json.dumps(data_after, ensure_ascii=False, default=str)
+    else:
+        data_after_json = None
+    
+    # Используем SchoolVersion вместо DataVersion
+    version = SchoolVersion(
+        pk_school=record_id,  # или другое поле в зависимости от таблицы
+        version_number=1,  # нужно реализовать подсчет версий
         action=action,
-        data_before=data_before,
-        data_after=data_after,
+        old_data=data_before_json,
+        new_data=data_after_json,
         changed_by=user_id,
         changed_at=datetime.now(timezone.utc)
     )
     
-    db.session.add(version)
-    db.session.commit()
+    print(f"DEBUG: Создана версия: {version}")
+    
+    try:
+        db.session.add(version)
+        db.session.commit()
+        print(f"DEBUG: Версия сохранена в БД")
+    except Exception as e:
+        print(f"ERROR: Ошибка сохранения версии: {e}")
+        db.session.rollback()
+    
     return version
 
 
-def get_school_versions(school_id):
-    """Получить историю изменений школы"""
-    from models import DataVersion
-    return DataVersion.query.filter_by(
-        table_name='School',
-        record_id=school_id
-    ).order_by(DataVersion.changed_at.desc()).all()
 
 
 def save_school_version_on_create(school, user_id):
@@ -64,7 +79,24 @@ def save_school_version_on_create(school, user_id):
 
 def save_school_version_on_update(school, old_values, user_id):
     """Сохранение версии при обновлении школы"""
-    school_data = {
+    # Получаем полные данные школы ДО изменения
+    school_data_before = {
+        'Official_Name': old_values.get('Official_Name', '') if old_values else school.Official_Name,
+        'Legal_Adress': old_values.get('Legal_Adress', '') if old_values else school.Legal_Adress,
+        'Phone': old_values.get('Phone', '') if old_values else school.Phone,
+        'Email': old_values.get('Email', '') if old_values else school.Email,
+        'Website': old_values.get('Website', '') if old_values else school.Website,
+        'Founding_Date': old_values.get('Founding_Date', '') if old_values else (school.Founding_Date.isoformat() if school.Founding_Date else None),
+        'Number_of_Students': old_values.get('Number_of_Students', '') if old_values else school.Number_of_Students,
+        'License': old_values.get('License', '') if old_values else school.License,
+        'Accreditation': old_values.get('Accreditation', '') if old_values else school.Accreditation,
+        'PK_Type_of_School': old_values.get('PK_Type_of_School', '') if old_values else school.PK_Type_of_School,
+        'PK_Settlement': old_values.get('PK_Settlement', '') if old_values else school.PK_Settlement,
+        'is_active': old_values.get('is_active', True) if old_values else school.is_active
+    }
+    
+    # Полные данные школы ПОСЛЕ изменения
+    school_data_after = {
         'Official_Name': school.Official_Name,
         'Legal_Adress': school.Legal_Adress,
         'Phone': school.Phone,
@@ -79,8 +111,7 @@ def save_school_version_on_update(school, old_values, user_id):
         'is_active': school.is_active
     }
     
-    create_version('School', school.PK_School, 'update', old_values, school_data, user_id)
-
+    create_version('School', school.PK_School, 'update', school_data_before, school_data_after, user_id)
 
 def save_school_version_on_delete(school, user_id):
     """Сохранение версии при удалении школы"""
@@ -101,20 +132,7 @@ def save_school_version_on_delete(school, user_id):
     
     create_version('School', school.PK_School, 'delete', school_data, None, user_id)
 
-def create_version(table_name, record_id, action, data_before, data_after, user_id):
-    """Создание записи о версии данных"""
-    version = DataVersion(
-        table_name=table_name,
-        record_id=record_id,
-        action=action,
-        data_before=data_before,
-        data_after=data_after,
-        changed_by=user_id,
-        changed_at=datetime.now(timezone.utc)
-    )
-    db.session.add(version)
-    db.session.commit()
-    return version
+
 
 def get_versions(table_name, record_id, limit=50):
     """Получить историю изменений записи"""
@@ -210,23 +228,18 @@ def allowed_file(filename, allowed_extensions):
            filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 def audit_log(user_id, action, table_name, record_id, old_values=None, new_values=None):
-    """Логирование действий в системе"""
-    try:
-        log = AuditLog(
-            user_id=user_id,
-            action=action,
-            table_name=table_name,
-            record_id=str(record_id),
-            old_values=json.dumps(old_values, ensure_ascii=False) if old_values else None,
-            new_values=json.dumps(new_values, ensure_ascii=False) if new_values else None,
-            ip_address=request.remote_addr,
-            user_agent=request.user_agent.string if request.user_agent else None
-        )
-        db.session.add(log)
-        db.session.commit()
-    except Exception as e:
-        current_app.logger.error(f'Ошибка при логировании: {e}')
-        db.session.rollback()
+    """Запись в журнал аудита"""
+    log = AuditLog(
+        user_id=user_id,  # Должен быть ID пользователя, а не None
+        action=action,
+        table_name=table_name,
+        record_id=record_id,
+        old_values=json.dumps(old_values, ensure_ascii=False) if old_values else None,
+        new_values=json.dumps(new_values, ensure_ascii=False) if new_values else None,
+        timestamp=datetime.now(timezone.utc)  # Добавляем явно timestamp
+    )
+    db.session.add(log)
+    db.session.commit()
 
 def role_required(role_name):
     """Декоратор для проверки ролей"""

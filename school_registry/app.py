@@ -3,6 +3,8 @@ import csv
 import json
 from datetime import datetime, timezone
 from functools import wraps
+import subprocess
+from datetime import datetime
 from flask import (
     Flask, render_template, request, jsonify,
     redirect, url_for, flash, send_file, abort,
@@ -22,6 +24,7 @@ from forms import (
     ReviewForm, ImportForm, EmployeeForm,
     ProgramForm, UserProfileForm
 )
+from models import AuditLog, ImportHistory, SchoolVersion
 from utils import (
     allowed_file, audit_log, role_required,
     export_to_csv, export_to_excel, import_from_csv, import_from_excel,
@@ -30,9 +33,9 @@ from utils import (
     save_school_version_on_create,
     save_school_version_on_update,
     save_school_version_on_delete,
-    get_school_versions
+    get_school_versions,  create_version
 )
-
+from sqlalchemy import func
 # Инициализация приложения
 app = Flask(__name__)
 
@@ -52,13 +55,29 @@ login_manager.login_message_category = 'warning'
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+def get_user_by_id(user_id):
+    """Получить пользователя по ID"""
+    from models import User
+    return User.query.get(user_id)
 
+def get_school_type_by_id(type_id):
+    """Получить тип школы по ID"""
+    from models import TypeOfSchool
+    return TypeOfSchool.query.get(type_id)
+
+def get_settlement_by_id(settlement_id):
+    """Получить населенный пункт по ID"""
+    from models import Settlement
+    return Settlement.query.get(settlement_id)
+
+# Контекстные процессоры
 # Контекстные процессоры
 # Контекстные процессоры
 # Контекстные процессоры
 @app.context_processor
 def inject_globals():
     from config import Config
+    import json
     
     def user_has_role(role_name):
         """Безопасная проверка роли пользователя в шаблонах"""
@@ -143,6 +162,48 @@ def inject_globals():
             del args[filter_key]
         return url_for('index', **args)
     
+    def fromjson(value):
+        """Фильтр Jinja2 для парсинга JSON"""
+        if not value:
+            return None
+        try:
+            if isinstance(value, str):
+                # Убедимся, что правильно парсим Unicode
+                return json.loads(value)
+            elif hasattr(value, '__dict__'):
+                # Если это уже объект
+                return value
+            return value
+        except Exception as e:
+            print(f"Ошибка парсинга JSON: {e}")
+            return None
+    
+    def get_field_display_name(field):
+        """Получить читаемое название поля"""
+        field_names = {
+            'Official_Name': 'Официальное название',
+            'Legal_Adress': 'Юридический адрес',
+            'Phone': 'Телефон',
+            'Email': 'Email',
+            'Website': 'Веб-сайт',
+            'Founding_Date': 'Дата основания',
+            'Number_of_Students': 'Количество учащихся',
+            'License': 'Лицензия',
+            'Accreditation': 'Аккредитация',
+            'PK_Type_of_School': 'Тип школы',
+            'PK_Settlement': 'Населенный пункт',
+            'is_active': 'Статус активности'
+        }
+        return field_names.get(field, field)
+    
+    def safe_json_display(value):
+        """Безопасное отображение JSON значения"""
+        if value is None:
+            return '(пусто)'
+        if isinstance(value, str):
+            return value
+        return str(value)
+    
     return {
         'roles': Config.ROLES,
         'current_user': current_user,
@@ -155,8 +216,30 @@ def inject_globals():
         'get_active_filters': get_active_filters,
         'has_active_filters': has_active_filters(),
         'active_filters': get_active_filters(),
-        'remove_filter_url': remove_filter_url
+        'remove_filter_url': remove_filter_url,
+        'fromjson': fromjson,
+        'get_field_display_name': get_field_display_name,
+        'safe_json_display': safe_json_display,
+        'get_user_by_id': get_user_by_id,
+        'get_school_type_by_id': get_school_type_by_id,
+        'get_settlement_by_id': get_settlement_by_id
     }
+
+@app.template_filter('fromjson')
+def fromjson_filter(value):
+    """Фильтр Jinja2 для парсинга JSON в шаблонах."""
+    if not value:
+        return None
+    try:
+        if isinstance(value, str):
+            return json.loads(value)
+        elif hasattr(value, '__dict__'):
+            return value
+        return value
+    except Exception as e:
+        print(f"Ошибка парсинга JSON: {e}")
+        return None
+    
 # Обработка ошибок
 @app.errorhandler(404)
 def not_found_error(error):
@@ -678,24 +761,28 @@ def update_profile():
     return redirect(url_for('profile'))
 
 # Административная часть
-@app.route('/admin')
 @login_required
 @role_required('school_admin')
 def admin_dashboard():
-    stats = generate_report_stats()
+    from models import School, Review
     
-    recent_audits = AuditLog.query.order_by(
-        db.desc(AuditLog.timestamp)
-    ).limit(10).all()
+    # Статистика
+    total_schools = School.query.count()
+    total_students = db.session.query(db.func.sum(School.Number_of_Students)).scalar() or 0
+    pending_reviews = Review.query.filter_by(is_approved=False).count()
     
-    pending_reviews = Review.query.filter_by(
-        is_approved=False
-    ).count()
+    stats = {
+        'total_schools': total_schools,
+        'total_students': total_students
+    }
+    
+    # Последние действия с информацией о пользователях
+    recent_audits = db.session.query(AuditLog).order_by(db.desc(AuditLog.timestamp)).limit(20).all()
     
     return render_template('admin/dashboard.html',
-        stats=stats,
-        recent_audits=recent_audits,
-        pending_reviews=pending_reviews)
+                          stats=stats,
+                          recent_audits=recent_audits,
+                          pending_reviews=pending_reviews)
 
 # Управление школами
 @app.route('/admin/schools')
@@ -833,8 +920,20 @@ def edit_school(school_id):
     if form.validate_on_submit():
         old_values = {
             'Official_Name': school.Official_Name,
-            'Legal_Adress': school.Legal_Adress,
-            'Phone': school.Phone
+        'Legal_Adress': school.Legal_Adress,
+        'Phone': school.Phone,
+        'Email': school.Email,
+        'Website': school.Website,
+        'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+        'Number_of_Students': school.Number_of_Students,
+        'License': school.License,
+        'Accreditation': school.Accreditation,
+        'PK_Type_of_School': school.PK_Type_of_School,
+        'PK_Settlement': school.PK_Settlement,
+        'is_active': school.is_active,
+        # Также инфраструктуру и специализации
+        'infrastructure': [infra.PK_Infrastructure for infra in school.infrastructure],
+        'specializations': [spec.PK_Specialization for spec in school.specializations]
         }
         
         # Обновляем данные школы из формы
@@ -1150,24 +1249,6 @@ def add_review(school_id):
     
     return redirect(url_for('school_detail', school_id=school_id))
 
-@app.route('/admin/reviews')
-@login_required
-@role_required('school_admin')
-def admin_reviews():
-    page = request.args.get('page', 1, type=int)
-    status = request.args.get('status', 'pending')
-    
-    query = Review.query
-    if status == 'pending':
-        query = query.filter_by(is_approved=False)
-    elif status == 'approved':
-        query = query.filter_by(is_approved=True)
-    
-    reviews = query.order_by(db.desc(Review.Date)).paginate(page=page, per_page=20)
-    
-    return render_template('admin/reviews.html',
-        reviews=reviews,
-        status=status)
 
 @app.route('/admin/review/<int:review_id>/moderate', methods=['POST'])
 @login_required
@@ -1198,13 +1279,83 @@ def moderate_review(review_id):
 @login_required
 @role_required('super_admin')
 def create_backup_route():
-    backup_file = create_backup()
-    if backup_file:
-        flash(f'Резервная копия создана: {backup_file}', 'success')
-    else:
-        flash('Ошибка при создании резервной копии', 'danger')
-    
-    return redirect(url_for('admin_dashboard'))
+    try:
+        # Получаем параметры подключения из конфигурации
+        db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+        
+        # Парсим URI PostgreSQL
+        # Формат: postgresql://user:password@host:port/database
+        if not db_uri.startswith('postgresql://'):
+            flash('Поддерживается только PostgreSQL для создания бэкапов', 'warning')
+            return redirect(url_for('admin_dashboard'))
+        
+        # Извлекаем параметры
+        # Убираем префикс
+        db_uri = db_uri.replace('postgresql://', '')
+        
+        # Разделяем пользователя/пароль и хост/порт/базу
+        parts = db_uri.split('@')
+        if len(parts) != 2:
+            flash('Неверный формат строки подключения к БД', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        user_pass, host_port_db = parts
+        username, password = user_pass.split(':')
+        
+        # Разделяем хост:порт/база
+        host_port, database = host_port_db.split('/')
+        if ':' in host_port:
+            host, port = host_port.split(':')
+        else:
+            host, port = host_port, '5432'
+        
+        # Создаем имя файла с временной меткой
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f'dump_{timestamp}.sql'
+        backup_path = os.path.join('backups', backup_filename)
+        
+        # Создаем директорию backups если её нет
+        os.makedirs('backups', exist_ok=True)
+        
+        # Устанавливаем переменную окружения PGPASSWORD
+        env = os.environ.copy()
+        env['PGPASSWORD'] = password
+        
+        # Формируем команду pg_dump
+        cmd = [
+            'pg_dump',
+            '-h', host,
+            '-p', port,
+            '-U', username,
+            '-d', database,
+            '-f', backup_path,
+            '--clean',  # Добавить команды для очистки базы
+            '--if-exists',  # Использовать IF EXISTS при удалении объектов
+            '--create',  # Добавить команду CREATE DATABASE
+            '--no-owner',  # Не указывать владельца
+            '--no-privileges'  # Не добавлять привилегии
+        ]
+        
+        # Выполняем команду
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            flash(f'Ошибка при создании бэкапа: {result.stderr}', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        
+        # Отправляем файл для скачивания
+        from flask import send_file
+        return send_file(
+            backup_path,
+            as_attachment=True,
+            download_name=backup_filename,
+            mimetype='application/sql'
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Error creating backup: {str(e)}")
+        flash(f'Ошибка при создании бэкапа: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
 
 # Новые отчеты по требованию ТЗ
 
@@ -1741,94 +1892,35 @@ def get_all_settlements():
 @login_required
 @role_required('region_admin')
 def school_history(school_id):
-    """Просмотр истории изменений школы"""
     school = School.query.get_or_404(school_id)
-    versions = get_school_versions(school_id)
+    
+    # ВРЕМЕННЫЙ ФИКС - используем исправленный SQL прямо здесь
+    sql = """
+        SELECT
+            sv.pk_version,
+            sv.pk_school,
+            sv.old_data,
+            sv.new_data,
+            sv.changed_at,
+            sv.changed_by,
+            sv.action,
+            u.username
+        FROM school_versions sv
+        LEFT JOIN users u ON sv.changed_by = u.id
+        WHERE sv.pk_school = :school_id
+        ORDER BY sv.changed_at DESC
+    """
+    
+    try:
+        versions = db.session.execute(sql, {'school_id': school_id}).fetchall()
+    except Exception as e:
+        print(f"Ошибка получения версий: {e}")
+        versions = []
     
     return render_template('admin/school_history.html',
                          school=school,
                          versions=versions)
 
-
-@app.route('/admin/version/<int:version_id>/rollback', methods=['POST'])
-@login_required
-@role_required('super_admin')
-def rollback_version(version_id):
-    """Откат к предыдущей версии с улучшенным логированием"""
-    from models import DataVersion
-    import json
-    
-    version = DataVersion.query.get_or_404(version_id)
-    
-    if version.table_name == 'School':
-        school = School.query.get_or_404(version.record_id)
-        
-        # Сохраняем текущее состояние перед откатом
-        current_state = {
-            'Official_Name': school.Official_Name,
-            'Legal_Adress': school.Legal_Adress,
-            'Phone': school.Phone,
-            'Email': school.Email,
-            'Website': school.Website,
-            'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
-            'Number_of_Students': school.Number_of_Students,
-            'License': school.License,
-            'Accreditation': school.Accreditation,
-            'PK_Type_of_School': school.PK_Type_of_School,
-            'PK_Settlement': school.PK_Settlement,
-            'is_active': school.is_active
-        }
-        
-        # Восстанавливаем данные из версии
-        if version.data_before:
-            data = version.data_before
-            
-            # Логируем изменения
-            changes_log = []
-            for key, value in data.items():
-                current_value = current_state.get(key)
-                if current_value != value:
-                    changes_log.append(f"{key}: {current_value} -> {value}")
-            
-            # Применяем изменения
-            school.Official_Name = data.get('Official_Name', school.Official_Name)
-            school.Legal_Adress = data.get('Legal_Adress', school.Legal_Adress)
-            school.Phone = data.get('Phone', school.Phone)
-            school.Email = data.get('Email', school.Email)
-            school.Website = data.get('Website', school.Website)
-            
-            if data.get('Founding_Date'):
-                from datetime import datetime
-                school.Founding_Date = datetime.fromisoformat(data['Founding_Date'])
-            
-            school.Number_of_Students = data.get('Number_of_Students', school.Number_of_Students)
-            school.License = data.get('License', school.License)
-            school.Accreditation = data.get('Accreditation', school.Accreditation)
-            school.PK_Type_of_School = data.get('PK_Type_of_School', school.PK_Type_of_School)
-            school.PK_Settlement = data.get('PK_Settlement', school.PK_Settlement)
-            school.is_active = data.get('is_active', school.is_active)
-            
-            db.session.commit()
-            
-            # Создаем запись об откате
-            from utils import create_version
-            create_version(
-                'School', 
-                school.PK_School, 
-                'rollback',
-                current_state, 
-                data, 
-                current_user.id,
-                description=f"Откат к версии {version_id}. Изменения: {', '.join(changes_log)}"
-            )
-            
-            flash(f'Откат выполнен успешно. Изменено {len(changes_log)} полей.', 'success')
-        else:
-            flash('Нет данных для отката', 'warning')
-    else:
-        flash('Откат для этой таблицы пока не поддерживается', 'warning')
-    
-    return redirect(url_for('school_history', school_id=version.record_id))
 
 # Управление проверками Рособрнадзора
 @app.route('/admin/inspections')
@@ -1957,88 +2049,353 @@ def delete_inspection(inspection_id):
     return redirect(url_for('admin_inspections'))
 
 # Удаление отзывов администратором
+# В функции delete_review в app.py исправьте вызов audit_log:
 @app.route('/admin/review/<int:review_id>/delete', methods=['POST'])
 @login_required
 @role_required('school_admin')
-def delete_review_admin(review_id):
-    """Удаление отзыва администратором"""
+def delete_review(review_id):
     review = Review.query.get_or_404(review_id)
-    
-    # Сохраняем информацию перед удалением
     school_id = review.PK_School
-    review_text = review.Text[:50] + "..." if len(review.Text) > 50 else review.Text
     
-    # Мягкое удаление
-    review.is_deleted = True
-    review.deleted_by = current_user.id
-    review.deleted_at = datetime.now(timezone.utc)
-    review.deletion_reason = request.form.get('reason', 'Удалено администратором')
+    # Исправленный вызов audit_log - убрать параметр description
+    audit_log(current_user.id, 'delete', 'Review', review_id,
+              old_values={
+                  'Author': review.Author,
+                  'Text': review.Text[:100] if review.Text else '',
+                  'Rating': review.Rating,
+                  'PK_School': review.PK_School
+              })
     
+    db.session.delete(review)
     db.session.commit()
     
-    audit_log(current_user.id, 'delete', 'Review', review_id,
-              old_values={'Text': review_text, 'Author': review.Author},
-              description=f"Отзыв удален администратором")
-    
-    flash('Отзыв удален', 'success')
+    flash('Отзыв успешно удален', 'success')
     return redirect(url_for('school_detail', school_id=school_id))
 
-# Отчет по нарушениям
-@app.route('/reports/violations')
+
+@app.route('/admin/rollback/<int:version_id>', methods=['POST'])
 @login_required
-@role_required('region_admin')
+@role_required('super_admin')
+def rollback_version(version_id):
+    # Используем правильное имя поля
+    version = SchoolVersion.query.get_or_404(version_id)
+    
+    # Получаем school_id из параметра запроса или из версии
+    school_id = request.args.get('school_id')
+    if not school_id:
+        school_id = version.pk_school  # ИСПРАВЛЕНО: было version.school_id
+    
+    school = School.query.get_or_404(school_id)
+    
+    # Проверяем, что версия принадлежит этой школе
+    if version.pk_school != school.PK_School:  # ИСПРАВЛЕНО: было version.school_id
+        abort(403, "Эта версия не принадлежит указанной школе")
+    
+    # Получаем данные из старой версии
+    if not version.old_data:
+        flash('Нет данных для отката', 'danger')
+        return redirect(url_for('school_history', school_id=school.PK_School))
+    
+    try:
+        import json
+        old_data = json.loads(version.old_data)
+        
+        # Сохраняем текущие значения перед откатом
+        current_values = {
+            'Official_Name': school.Official_Name,
+            'Legal_Adress': school.Legal_Adress,
+            'Phone': school.Phone,
+            'Email': school.Email,
+            'Website': school.Website,
+            'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+            'Number_of_Students': school.Number_of_Students,
+            'License': school.License,
+            'Accreditation': school.Accreditation,
+            'PK_Type_of_School': school.PK_Type_of_School,
+            'PK_Settlement': school.PK_Settlement,
+            'is_active': school.is_active
+        }
+        
+        # Восстанавливаем значения из старой версии
+        school.Official_Name = old_data.get('Official_Name', school.Official_Name)
+        school.Legal_Adress = old_data.get('Legal_Adress', school.Legal_Adress)
+        school.Phone = old_data.get('Phone', school.Phone)
+        school.Email = old_data.get('Email', school.Email)
+        school.Website = old_data.get('Website', school.Website)
+        
+        # Обрабатываем дату основания
+        if old_data.get('Founding_Date'):
+            from datetime import datetime
+            try:
+                school.Founding_Date = datetime.fromisoformat(old_data['Founding_Date'])
+            except ValueError:
+                school.Founding_Date = old_data['Founding_Date']
+        
+        school.Number_of_Students = old_data.get('Number_of_Students', school.Number_of_Students)
+        school.License = old_data.get('License', school.License)
+        school.Accreditation = old_data.get('Accreditation', school.Accreditation)
+        school.PK_Type_of_School = old_data.get('PK_Type_of_School', school.PK_Type_of_School)
+        school.PK_Settlement = old_data.get('PK_Settlement', school.PK_Settlement)
+        school.is_active = old_data.get('is_active', school.is_active)
+        
+        # Восстанавливаем инфраструктуру
+        if 'infrastructure' in old_data:
+            school.infrastructure = []
+            for infra_id in old_data['infrastructure']:
+                infra = Infrastructure.query.get(infra_id)
+                if infra:
+                    school.infrastructure.append(infra)
+        
+        # Восстанавливаем специализации
+        if 'specializations' in old_data:
+            school.specializations = []
+            for spec_id in old_data['specializations']:
+                spec = Specialization.query.get(spec_id)
+                if spec:
+                    school.specializations.append(spec)
+        
+        db.session.commit()
+        
+        # Создаем запись об откате
+        create_version('School', school.PK_School, 'rollback', current_values, old_data, current_user.id)
+        
+        flash('Откат выполнен успешно', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при откате: {str(e)}', 'danger')
+        print(f"Ошибка отката: {e}")
+    
+    return redirect(url_for('school_history', school_id=school.PK_School))
+
+# Отчет по нарушениям Рособрнадзора
+@app.route('/report/violations')
+@login_required
 def report_violations():
     """Отчет по нарушениям Рособрнадзора"""
+    
+    # Параметры фильтрации
+    district_id = request.args.get('district_id', type=int)
+    settlement_id = request.args.get('settlement_id', type=int)
+    school_type_id = request.args.get('school_type_id', type=int)
+    status = request.args.get('status', 'all')  # all, with_violations, resolved, active
+    
+    # Базовый запрос для инспекций
+    query = Inspection.query.join(School)
+    
     # Фильтры
-    district_id = request.args.get('district_id')
-    year = request.args.get('year', datetime.now().year, type=int)
-    violation_type = request.args.get('violation_type')
-    
-    query = Inspection.query.filter(
-        Inspection.has_violations == True
-    )
-    
-    if year:
-        query = query.filter(db.extract('year', Inspection.Date) == year)
-    
     if district_id:
-        query = query.join(School).join(Settlement).filter(
-            Settlement.PK_District == district_id
-        )
+        query = query.join(Settlement).filter(Settlement.PK_District == district_id)
     
-    if violation_type:
-        query = query.filter(Inspection.violation_type.ilike(f'%{violation_type}%'))
+    if settlement_id:
+        query = query.filter(School.PK_Settlement == settlement_id)
     
+    if school_type_id:
+        query = query.filter(School.PK_Type_of_School == school_type_id)
+    
+    # Фильтр по статусу нарушений
+    if status == 'with_violations':
+        query = query.filter(Inspection.has_violations == True)
+    elif status == 'active':
+        query = query.filter(Inspection.has_violations == True, Inspection.is_resolved == False)
+    elif status == 'resolved':
+        query = query.filter(Inspection.has_violations == True, Inspection.is_resolved == True)
+    
+    # Получаем данные
     inspections = query.order_by(Inspection.Date.desc()).all()
-    
-    # Статистика
-    total_violations = len(inspections)
-    by_district = {}
-    by_type = {}
-    
-    for inspection in inspections:
-        # Статистика по районам
-        if inspection.school and inspection.school.settlement:
-            district_name = inspection.school.settlement.district.Name
-            by_district[district_name] = by_district.get(district_name, 0) + 1
-        
-        # Статистика по типам нарушений
-        if inspection.violation_type:
-            violation_types = [vt.strip() for vt in inspection.violation_type.split(',')]
-            for vt in violation_types:
-                by_type[vt] = by_type.get(vt, 0) + 1
     
     # Данные для фильтров
     districts = District.query.order_by(District.Name).all()
+    settlements = Settlement.query.order_by(Settlement.Name).all()
+    school_types = TypeOfSchool.query.order_by(TypeOfSchool.Name).all()
+    
+    # Статистика
+    total_inspections = len(inspections)
+    with_violations = sum(1 for i in inspections if i.has_violations)
+    resolved = sum(1 for i in inspections if i.has_violations and i.is_resolved)
+    active = with_violations - resolved
     
     return render_template('reports/violations.html',
                          inspections=inspections,
-                         total_violations=total_violations,
-                         by_district=by_district,
-                         by_type=by_type,
                          districts=districts,
-                         year=year)
+                         settlements=settlements,
+                         school_types=school_types,
+                         total_inspections=total_inspections,
+                         with_violations=with_violations,
+                         resolved=resolved,
+                         active=active)
 
+
+@app.cli.command('seed-history')
+def seed_history_command():
+    """Заполнение истории изменений тестовыми данными"""
+    print("Заполнение истории изменений...")
+    
+    # Проверяем, есть ли школа с ID 102
+    school = School.query.get(102)
+    if not school:
+        print("Школа с ID 102 не найдена")
+        return
+    
+    # Проверяем, есть ли пользователь администратор
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
+        print("Пользователь 'admin' не найден")
+        return
+    
+    # Удаляем существующие версии для этой школы
+    from sqlalchemy import text
+    db.session.execute(
+        text("DELETE FROM school_versions WHERE pk_school = :school_id"),
+        {"school_id": 102}
+    )
+    
+    # Создаем тестовые версии
+    from datetime import datetime
+    import json
+    
+    # Версия 1: создание школы
+    db.session.execute(
+        text("""
+            INSERT INTO school_versions 
+            (pk_school, data_before, data_after, changed_at, changer_id, action)
+            VALUES 
+            (:school_id, :data_before, :data_after, :changed_at, :changer_id, :action)
+        """),
+        {
+            "school_id": 102,
+            "data_before": None,
+            "data_after": json.dumps({
+                "Official_Name": "Барнаулская средняя школа",
+                "Legal_Adress": "город Барнаул, ул. Песчаная, д. 769 стр. 84",
+                "Phone": "+7 (3857) 728127",
+                "Email": None,
+                "Website": None,
+                "Founding_Date": None,
+                "Number_of_Students": None,
+                "License": None,
+                "Accreditation": None,
+                "PK_Type_of_School": None,
+                "PK_Settlement": None,
+                "is_active": True
+            }),
+            "changed_at": datetime(2026, 1, 11, 15, 44, 0),
+            "changer_id": admin.id,
+            "action": "create"
+        }
+    )
+    
+    # Версия 2: обновление школы
+    db.session.execute(
+        text("""
+            INSERT INTO school_versions 
+            (pk_school, data_before, data_after, changed_at, changer_id, action)
+            VALUES 
+            (:school_id, :data_before, :data_after, :changed_at, :changer_id, :action)
+        """),
+        {
+            "school_id": 102,
+            "data_before": json.dumps({
+                "Official_Name": "Барнаулская средняя школа",
+                "Legal_Adress": "город Барнаул, ул. Песчаная, д. 769 стр. 84",
+                "Phone": "+7 (3857) 728127",
+                "Email": None,
+                "Website": None,
+                "Founding_Date": None,
+                "Number_of_Students": None,
+                "License": None,
+                "Accreditation": None,
+                "PK_Type_of_School": None,
+                "PK_Settlement": None,
+                "is_active": True
+            }),
+            "data_after": json.dumps({
+                "Official_Name": "Барнаулская средняя школаа",
+                "Legal_Adress": "город Барнаул, ул. Песчаная, д. 769 стр. 84",
+                "Phone": "+7 (3857) 728127",
+                "Email": "school102@altai.edu.ru",
+                "Website": "http://school102.altai.edu.ru",
+                "Founding_Date": "1992-03-19",
+                "Number_of_Students": "1233",
+                "License": "Лицензия №Л035-35795 от 11.01.2026",
+                "Accreditation": "Аккредитация №А417 от 11.01.2026",
+                "PK_Type_of_School": "6",
+                "PK_Settlement": "1",
+                "is_active": "True"
+            }),
+            "changed_at": datetime(2026, 1, 11, 21, 56, 37),
+            "changer_id": admin.id,
+            "action": "update"
+        }
+    )
+    
+    db.session.commit()
+    print("✅ История изменений заполнена тестовыми данными")
+# Модерация отзывов
+@app.route('/admin/reviews')
+@login_required
+@role_required('school_admin')
+def admin_reviews():
+    page = request.args.get('page', 1, type=int)
+    status = request.args.get('status', 'pending')
+    
+    query = Review.query
+    
+    if status == 'pending':
+        query = query.filter_by(is_approved=False)
+    elif status == 'approved':
+        query = query.filter_by(is_approved=True)
+    elif status == 'rejected':
+        query = query.filter_by(is_approved=False).filter(Review.rejection_reason.isnot(None))
+    
+    reviews = query.order_by(db.desc(Review.Date)).paginate(page=page, per_page=20, error_out=False)
+    
+    pending_count = Review.query.filter_by(is_approved=False).count()
+    approved_count = Review.query.filter_by(is_approved=True).count()
+    
+    return render_template('admin/reviews.html',
+                          reviews=reviews,
+                          pending_count=pending_count,
+                          approved_count=approved_count,
+                          status=status)
+
+# Создание бэкапа
+
+# Панель управления администратора
+@app.route('/admin')
+@login_required
+@role_required('school_admin')
+def admin_dashboard():
+    from models import School, Review, AuditLog
+    
+    try:
+        # Статистика
+        total_schools = School.query.filter_by(is_active=True).count()
+        
+        # Сумма учащихся
+        total_students_result = db.session.query(func.sum(School.Number_of_Students)).filter_by(is_active=True).scalar()
+        total_students = total_students_result if total_students_result else 0
+        
+        # Отзывы на модерации
+        pending_reviews = Review.query.filter_by(is_approved=False).count()
+        
+        stats = {
+            'total_schools': total_schools,
+            'total_students': total_students
+        }
+        
+        # Последние действия
+        recent_audits = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
+        
+        return render_template('admin/dashboard.html',
+                              stats=stats,
+                              recent_audits=recent_audits,
+                              pending_reviews=pending_reviews)
+    except Exception as e:
+        app.logger.error(f"Error in admin_dashboard: {str(e)}")
+        flash(f'Ошибка при загрузке панели управления: {str(e)}', 'danger')
+        return redirect(url_for('index'))
+    
 # Команды CLI
 @app.cli.command('init-db')
 def init_db_command():

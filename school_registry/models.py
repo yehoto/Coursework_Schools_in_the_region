@@ -37,30 +37,21 @@ school_program_implementation = db.Table(
     db.Column('PK_Education_Program', db.BigInteger, db.ForeignKey('Education_Program.PK_Education_Program'), primary_key=True)
 )
 
-class User(db.Model, UserMixin):
-    __tablename__ = 'users'
+class User(db.Model):
+    __tablename__ = 'user'
     
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256))
-    role = db.Column(db.Integer, default=1)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.Integer, default=1)  # 1: ученик/родитель, 2: работник учреждения, 3: другое, 4: админ
+    school_id = db.Column(db.Integer, db.ForeignKey('School.PK_School'), nullable=True)  # Для работников учреждения
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     last_login = db.Column(db.DateTime, nullable=True)
-    gosuslugi_id = db.Column(db.String(100), nullable=True)
-    gosuslugi_data = db.Column(db.Text, nullable=True)
     
-    # Отношения
-    reviews = db.relationship('Review', backref='author_user', foreign_keys='Review.user_id', lazy='dynamic')
-    moderated_reviews = db.relationship('Review', backref='moderator_user', foreign_keys='Review.moderated_by', lazy='dynamic')
-    created_schools = db.relationship('School', backref='creator', foreign_keys='School.created_by', lazy='dynamic')
-    versions = db.relationship('DataVersion', backref='changer', foreign_keys='DataVersion.changed_by', lazy='dynamic')
-    imports = db.relationship('ImportHistory', backref='importer', foreign_keys='ImportHistory.imported_by', lazy='dynamic')
-    audit_logs = db.relationship('AuditLog', backref='user_ref', foreign_keys='AuditLog.user_id', lazy='dynamic')
-    
-    def __repr__(self):
-        return f'<User {self.username}>'
+    # Связи
+    school = db.relationship('School', backref='school_users', foreign_keys=[school_id])
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -68,11 +59,38 @@ class User(db.Model, UserMixin):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
     
+    @property
+    def is_authenticated(self):
+        return True
+    
+    @property
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return str(self.id)
+    
     def has_role(self, role_name):
-        """Проверка роли пользователя"""
-        from config import Config
-        required_role = Config.ROLES.get(role_name, 0)
-        return self.role >= required_role
+        roles = {
+            'parent_student': 1,
+            'school_employee': 2,
+            'other': 3,
+            'admin': 4,
+            'super_admin': 5
+        }
+        return self.role >= roles.get(role_name, 0)
+    
+    def can_edit_school(self, school_id=None):
+        # Ученики/родители не могут редактировать
+        if self.role == 1 or self.role == 3:
+            return False
+        # Работники учреждения могут редактировать только свою школу
+        if self.role == 2:
+            return school_id == self.school_id
+        # Админы могут редактировать все
+        if self.role >= 4:
+            return True
+        return False
 
 class School(db.Model):
     __tablename__ = 'School'
@@ -94,7 +112,7 @@ class School(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     
     # Связи
     type_of_school = db.relationship('TypeOfSchool', backref='schools')
@@ -221,13 +239,13 @@ class Review(db.Model):
     PK_School = db.Column(db.BigInteger, db.ForeignKey('School.PK_School'))
     
     # Поля системы
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     is_approved = db.Column(db.Boolean, default=True)
-    moderated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    moderated_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     moderated_at = db.Column(db.DateTime, nullable=True)
     moderation_comment = db.Column(db.Text, nullable=True)
     is_deleted = db.Column(db.Boolean, default=False)
-    deleted_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    deleted_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     deletion_reason = db.Column(db.Text, nullable=True)
     
@@ -257,7 +275,7 @@ class AuditLog(db.Model):
     __tablename__ = 'audit_log'
     
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     action = db.Column(db.String(50), nullable=False)
     table_name = db.Column(db.String(50), nullable=False)
     record_id = db.Column(db.String(100), nullable=False)
@@ -276,7 +294,7 @@ class ImportHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(10), nullable=False)
-    imported_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    imported_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     imported_at = db.Column(db.DateTime, default=datetime.utcnow)
     record_count = db.Column(db.Integer)
     status = db.Column(db.String(20), default='completed')
@@ -328,7 +346,7 @@ class SchoolVersion(db.Model):
     action = db.Column(db.String(50), nullable=False)
     old_data = db.Column(db.Text)
     new_data = db.Column(db.Text)
-    changed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    changed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # ИСПРАВЬТЕ ЭТИ СТРОКИ:

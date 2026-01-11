@@ -7,7 +7,10 @@ from wtforms import (
 )
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError, Optional, Email, URL
 from models import User
-
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField, SelectField, BooleanField, TextAreaField
+from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
+from models import User, School
 
 class LoginForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired()])
@@ -16,30 +19,56 @@ class LoginForm(FlaskForm):
     submit = SubmitField('Войти')
 
 class RegistrationForm(FlaskForm):
-    username = StringField(
-        'Имя пользователя',
-        validators=[DataRequired(), Length(min=3, max=64)]
-    )
-    email = StringField('Email', validators=[DataRequired()])
-    password = PasswordField(
-        'Пароль',
-        validators=[DataRequired(), Length(min=6)]
-    )
-    password2 = PasswordField(
-        'Повторите пароль',
-        validators=[DataRequired(), EqualTo('password')]
-    )
+    username = StringField('Имя пользователя', validators=[
+        DataRequired(),
+        Length(min=3, max=80, message='Имя пользователя должно быть от 3 до 80 символов')
+    ])
+    
+    email = StringField('Email', validators=[
+        DataRequired(),
+        Email(),
+        Length(max=120)
+    ])
+    
+    password = PasswordField('Пароль', validators=[
+        DataRequired(),
+        Length(min=6, message='Пароль должен быть не менее 6 символов')
+    ])
+    
+    password2 = PasswordField('Повторите пароль', validators=[
+        DataRequired(),
+        EqualTo('password', message='Пароли должны совпадать')
+    ])
+    
+    role = SelectField('Выберите вашу роль', choices=[
+        ('1', 'Ученик/Родитель (только просмотр)'),
+        ('2', 'Работник образовательного учреждения'),
+        ('3', 'Другое (только просмотр)')
+    ], validators=[DataRequired()])
+    
+    school_id = SelectField('Выберите ваше учреждение', choices=[], coerce=int)
+    
     submit = SubmitField('Зарегистрироваться')
     
-    def validate_username(self, username):
-        user = User.query.filter_by(username=username.data).first()
-        if user is not None:
-            raise ValidationError('Имя пользователя уже занято.')
+    def __init__(self, *args, **kwargs):
+        super(RegistrationForm, self).__init__(*args, **kwargs)
+        # Заполняем список школ
+        schools = School.query.filter_by(is_active=True).order_by(School.Official_Name).all()
+        self.school_id.choices = [(0, '-- Выберите учреждение --')] + [
+            (s.PK_School, s.Official_Name) for s in schools
+        ]
     
-    def validate_email(self, email):
-        user = User.query.filter_by(email=email.data).first()
-        if user is not None:
-            raise ValidationError('Email уже зарегистрирован.')
+    def validate_username(self, field):
+        if User.query.filter_by(username=field.data).first():
+            raise ValidationError('Это имя пользователя уже занято')
+    
+    def validate_email(self, field):
+        if User.query.filter_by(email=field.data).first():
+            raise ValidationError('Этот email уже зарегистрирован')
+    
+    def validate_school_id(self, field):
+        if self.role.data == '2' and (field.data == 0 or field.data is None):
+            raise ValidationError('Работник учреждения должен выбрать образовательное учреждение')
 
 class SchoolForm(FlaskForm):
     official_name = StringField(

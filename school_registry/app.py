@@ -83,22 +83,48 @@ def inject_globals():
         """Безопасная проверка роли пользователя в шаблонах"""
         if not current_user.is_authenticated:
             return False
-        required_role = Config.ROLES.get(role_name, 0)
-        return current_user.role >= required_role
+        
+        from models import User
+        user = User.query.get(current_user.id)
+        
+        if not user:
+            return False
+        
+        # Маппинг имен ролей на числовые значения
+        role_mapping = {
+            'parent_student': 1,
+            'school_employee': 2,
+            'other': 3,
+            'admin': 4,
+            'super_admin': 5
+        }
+        
+        required_role = role_mapping.get(role_name, 0)
+        return user.role >= required_role
+    
+    def can_edit_school_wrapper(school_id):
+        """Обертка для can_edit_school для использования в шаблонах"""
+        return can_edit_school(school_id)
     
     def user_role_name():
         """Безопасное получение имени роли в шаблонах"""
         if not current_user.is_authenticated:
             return 'Гость'
+        
+        from models import User
+        user = User.query.get(current_user.id)
+        
+        if not user:
+            return 'Неизвестно'
+        
         roles = {
-            0: 'Гость',
-            1: 'Родитель',
-            2: 'Учитель',
-            3: 'Администратор школы',
-            4: 'Администратор региона',
+            1: 'Ученик/Родитель',
+            2: 'Работник учреждения',
+            3: 'Другой пользователь',
+            4: 'Администратор',
             5: 'Супер-администратор'
         }
-        return roles.get(current_user.role, 'Неизвестно')
+        return roles.get(user.role, 'Неизвестно')
     
     def get_filter_display_name(key, value):
         """Получить читаемое имя для фильтра"""
@@ -212,6 +238,7 @@ def inject_globals():
         'pluralize': pluralize,
         'user_has_role': user_has_role,
         'user_role_name': user_role_name,
+        'can_edit_school': can_edit_school_wrapper,
         'get_filter_display_name': get_filter_display_name,
         'get_active_filters': get_active_filters,
         'has_active_filters': has_active_filters(),
@@ -682,19 +709,35 @@ def register():
         return redirect(url_for('index'))
     
     form = RegistrationForm()
+    
     if form.validate_on_submit():
+        # Проверка минимальной длины пароля
+        if len(form.password.data) < 6:
+            flash('Пароль должен содержать не менее 6 символов', 'danger')
+            return render_template('auth/register.html', form=form)
+        
         user = User(
             username=form.username.data,
             email=form.email.data,
-            role=1  # Родитель по умолчанию
+            role=int(form.role.data)
         )
+        
+        # Если роль - работник учреждения, устанавливаем school_id
+        if form.role.data == '2' and form.school_id.data and form.school_id.data != 0:
+            user.school_id = form.school_id.data
+        
         user.set_password(form.password.data)
         
         db.session.add(user)
         db.session.commit()
         
-        flash('Регистрация успешна! Теперь вы можете войти.', 'success')
+        flash('Регистрация успешна! Теперь вы можете войти в систему.', 'success')
         return redirect(url_for('login'))
+    
+    # Показать ошибки валидации
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(f'{getattr(form, field).label.text}: {error}', 'danger')
     
     return render_template('auth/register.html', form=form)
 
@@ -830,8 +873,14 @@ def admin_schools():
 
 @app.route('/admin/school/add', methods=['GET', 'POST'])
 @login_required
-@role_required('region_admin')
 def add_school():
+    # Проверяем, что пользователь - администратор или супер-администратор
+    from models import User
+    user = User.query.get(current_user.id)
+    
+    if not user or user.role < 4:
+        flash('Доступ запрещен. Только администраторы могут добавлять школы.', 'danger')
+        return redirect(url_for('index'))
     form = SchoolForm()
     
     form.type_of_school.choices = [(t.PK_Type_of_School, t.Name) 
@@ -883,9 +932,15 @@ def add_school():
 
 @app.route('/admin/school/<int:school_id>/edit', methods=['GET', 'POST'])
 @login_required
-@role_required('region_admin')
 def edit_school(school_id):
+    from models import School
+    
     school = School.query.get_or_404(school_id)
+    
+    # Проверка прав доступа
+    if not can_edit_school(school_id):
+        flash('У вас нет прав для редактирования этой школы', 'danger')
+        return redirect(url_for('school_detail', school_id=school_id))
     
     # Создаем форму и передаем объект школы для автозаполнения
     form = SchoolForm(obj=school)
@@ -2334,50 +2389,84 @@ def seed_history_command():
 # Модерация отзывов
 @app.route('/admin/reviews')
 @login_required
-@role_required('school_admin')
 def admin_reviews():
-    page = request.args.get('page', 1, type=int)
-    status = request.args.get('status', 'pending')
+    from models import User, Review
     
-    query = Review.query
+    user = User.query.get(current_user.id)
     
-    if status == 'pending':
-        query = query.filter_by(is_approved=False)
-    elif status == 'approved':
-        query = query.filter_by(is_approved=True)
-    elif status == 'rejected':
-        query = query.filter_by(is_approved=False).filter(Review.rejection_reason.isnot(None))
+    # Проверяем права
+    if not user or user.role < 2:
+        flash('Доступ запрещен.', 'danger')
+        return redirect(url_for('index'))
     
-    reviews = query.order_by(db.desc(Review.Date)).paginate(page=page, per_page=20, error_out=False)
-    
-    pending_count = Review.query.filter_by(is_approved=False).count()
-    approved_count = Review.query.filter_by(is_approved=True).count()
-    
-    return render_template('admin/reviews.html',
-                          reviews=reviews,
-                          pending_count=pending_count,
-                          approved_count=approved_count,
-                          status=status)
+    try:
+        page = request.args.get('page', 1, type=int)
+        status = request.args.get('status', 'pending')
+        
+        # Если пользователь - работник учреждения, фильтруем по его школе
+        if user.role == 2 and user.school_id:
+            query = Review.query.filter_by(PK_School=user.school_id)
+        else:
+            query = Review.query
+        
+        if status == 'pending':
+            query = query.filter_by(is_approved=False)
+        elif status == 'approved':
+            query = query.filter_by(is_approved=True)
+        elif status == 'rejected':
+            query = query.filter_by(is_approved=False).filter(Review.rejection_reason.isnot(None))
+        
+        reviews = query.order_by(Review.Date.desc()).paginate(page=page, per_page=20, error_out=False)
+        
+        if user.role == 2 and user.school_id:
+            pending_count = Review.query.filter_by(is_approved=False, PK_School=user.school_id).count()
+            approved_count = Review.query.filter_by(is_approved=True, PK_School=user.school_id).count()
+        else:
+            pending_count = Review.query.filter_by(is_approved=False).count()
+            approved_count = Review.query.filter_by(is_approved=True).count()
+        
+        return render_template('admin/reviews.html',
+                              reviews=reviews,
+                              pending_count=pending_count,
+                              approved_count=approved_count,
+                              status=status)
+    except Exception as e:
+        app.logger.error(f"Error in admin_reviews: {str(e)}")
+        flash(f'Ошибка при загрузке отзывов: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
 
 # Создание бэкапа
 
 # Панель управления администратора
 @app.route('/admin')
 @login_required
-@role_required('school_admin')
 def admin_dashboard():
-    from models import School, Review, AuditLog
+    from models import User, School, Review, AuditLog
+    from sqlalchemy import func
+    
+    user = User.query.get(current_user.id)
+    
+    # Проверяем, что пользователь имеет права администратора или работника учреждения
+    if not user or user.role < 2:
+        flash('Доступ запрещен. Только работники учреждений и администраторы имеют доступ к панели управления.', 'danger')
+        return redirect(url_for('index'))
     
     try:
         # Статистика
-        total_schools = School.query.filter_by(is_active=True).count()
+        if user.role >= 4:  # Администраторы видят все школы
+            total_schools = School.query.filter_by(is_active=True).count()
+            total_students_result = db.session.query(func.sum(School.Number_of_Students)).filter_by(is_active=True).scalar()
+        else:  # Работники учреждения видят только свою школу
+            total_schools = 1
+            total_students_result = School.query.filter_by(PK_School=user.school_id).first().Number_of_Students if user.school_id else 0
         
-        # Сумма учащихся
-        total_students_result = db.session.query(func.sum(School.Number_of_Students)).filter_by(is_active=True).scalar()
         total_students = total_students_result if total_students_result else 0
         
         # Отзывы на модерации
-        pending_reviews = Review.query.filter_by(is_approved=False).count()
+        if user.role >= 4:
+            pending_reviews = Review.query.filter_by(is_approved=False).count()
+        else:
+            pending_reviews = Review.query.filter_by(is_approved=False, PK_School=user.school_id).count()
         
         stats = {
             'total_schools': total_schools,
@@ -2385,7 +2474,14 @@ def admin_dashboard():
         }
         
         # Последние действия
-        recent_audits = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
+        if user.role >= 4:
+            recent_audits = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(20).all()
+        else:
+            # Работники учреждения видят только действия, связанные с их школой
+            recent_audits = AuditLog.query.filter(
+                (AuditLog.table_name == 'School') & 
+                (AuditLog.record_id == user.school_id)
+            ).order_by(AuditLog.timestamp.desc()).limit(20).all()
         
         return render_template('admin/dashboard.html',
                               stats=stats,
@@ -2396,6 +2492,47 @@ def admin_dashboard():
         flash(f'Ошибка при загрузке панели управления: {str(e)}', 'danger')
         return redirect(url_for('index'))
     
+# Функции для проверки прав доступа
+def can_edit_school(school_id):
+    """Проверяет, может ли текущий пользователь редактировать школу"""
+    if not current_user.is_authenticated:
+        return False
+    
+    # Получаем пользователя с текущим контекстом
+    from models import User
+    user = User.query.get(current_user.id)
+    
+    if not user:
+        return False
+    
+    # Ученики/родители и другие не могут редактировать
+    if user.role in [1, 3]:
+        return False
+    
+    # Работники учреждения могут редактировать только свою школу
+    if user.role == 2:
+        return user.school_id == school_id
+    
+    # Админы могут редактировать все
+    if user.role >= 4:
+        return True
+    
+    return False
+
+
+def school_employee_required(f):
+    """Декоратор для проверки, что пользователь - работник учреждения"""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        from models import User
+        user = User.query.get(current_user.id)
+        
+        if not user or user.role != 2:
+            flash('Доступ разрешен только работникам образовательных учреждений', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
 # Команды CLI
 @app.cli.command('init-db')
 def init_db_command():

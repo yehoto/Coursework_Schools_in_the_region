@@ -26,7 +26,11 @@ from utils import (
     allowed_file, audit_log, role_required,
     export_to_csv, export_to_excel, import_from_csv, import_from_excel,
     validate_school_data, generate_report_stats, create_backup,
-    render_star_rating, pluralize
+    render_star_rating, pluralize,
+    save_school_version_on_create,
+    save_school_version_on_update,
+    save_school_version_on_delete,
+    get_school_versions
 )
 
 # Инициализация приложения
@@ -780,7 +784,8 @@ def add_school():
         
         db.session.add(school)
         db.session.commit()
-        
+        save_school_version_on_create(school, current_user.id)
+
         audit_log(current_user.id, 'create', 'School', school.PK_School,
                   new_values=school.Official_Name)
         
@@ -860,6 +865,7 @@ def edit_school(school_id):
                 school.specializations.append(spec)
         
         db.session.commit()
+        save_school_version_on_update(school, old_values, current_user.id)
         
         audit_log(current_user.id, 'update', 'School', school.PK_School,
                   old_values=old_values,
@@ -878,6 +884,7 @@ def delete_school(school_id):
     
     school.is_active = False
     db.session.commit()
+    save_school_version_on_delete(school, current_user.id)
     
     audit_log(current_user.id, 'delete', 'School', school.PK_School,
               old_values={'Official_Name': school.Official_Name})
@@ -1109,16 +1116,14 @@ def export_schools():
 @login_required
 def add_review(school_id):
     school = School.query.get_or_404(school_id)
-    
     if not school.is_active:
         abort(404)
     
     form = ReviewForm()
     if form.validate_on_submit():
-        # Администраторы и учителя могут оставлять отзывы без модерации
+        # Исправленная проверка прав для автоматического одобрения
         is_approved = False
-        
-        if current_user.has_role('school_admin') or current_user.has_role('region_admin') or current_user.has_role('super_admin'):
+        if current_user.role >= 2:  # Учитель (2) и выше автоматически одобряются
             is_approved = True
         
         review = Review(
@@ -1138,9 +1143,10 @@ def add_review(school_id):
             flash('Отзыв успешно добавлен', 'success')
         else:
             flash('Отзыв добавлен и будет опубликован после модерации', 'success')
-        
     else:
-        flash('Ошибка при добавлении отзыва', 'danger')
+        # Добавим отладку, чтобы увидеть ошибки формы
+        print("Ошибки формы:", form.errors)  # Для отладки
+        flash('Ошибка при добавлении отзыва. Проверьте заполнение полей.', 'danger')
     
     return redirect(url_for('school_detail', school_id=school_id))
 
@@ -1729,6 +1735,88 @@ def get_all_settlements():
         'name': s.Name,
         'type': s.Type
     } for s in settlements])
+
+# История изменений школы
+@app.route('/admin/school/<int:school_id>/history')
+@login_required
+@role_required('region_admin')
+def school_history(school_id):
+    """Просмотр истории изменений школы"""
+    school = School.query.get_or_404(school_id)
+    versions = get_school_versions(school_id)
+    
+    return render_template('admin/school_history.html',
+                         school=school,
+                         versions=versions)
+
+
+@app.route('/admin/version/<int:version_id>/rollback', methods=['POST'])
+@login_required
+@role_required('super_admin')
+def rollback_version(version_id):
+    """Откат к предыдущей версии"""
+    from models import DataVersion
+    import json
+    
+    version = DataVersion.query.get_or_404(version_id)
+    
+    if version.table_name == 'School':
+        school = School.query.get_or_404(version.record_id)
+        
+        if version.data_before:
+            # Сохраняем текущие данные перед откатом
+            current_data = {
+                'Official_Name': school.Official_Name,
+                'Legal_Adress': school.Legal_Adress,
+                'Phone': school.Phone,
+                'Email': school.Email,
+                'Website': school.Website,
+                'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+                'Number_of_Students': school.Number_of_Students,
+                'License': school.License,
+                'Accreditation': school.Accreditation,
+                'PK_Type_of_School': school.PK_Type_of_School,
+                'PK_Settlement': school.PK_Settlement,
+                'is_active': school.is_active
+            }
+            
+            # Восстанавливаем данные из версии
+            data = version.data_before
+            
+            school.Official_Name = data['Official_Name']
+            school.Legal_Adress = data['Legal_Adress']
+            school.Phone = data['Phone']
+            school.Email = data['Email']
+            school.Website = data['Website']
+            
+            if data['Founding_Date']:
+                from datetime import datetime
+                school.Founding_Date = datetime.fromisoformat(data['Founding_Date'])
+            else:
+                school.Founding_Date = None
+                
+            school.Number_of_Students = data['Number_of_Students']
+            school.License = data['License']
+            school.Accreditation = data['Accreditation']
+            school.PK_Type_of_School = data['PK_Type_of_School']
+            school.PK_Settlement = data['PK_Settlement']
+            school.is_active = data['is_active']
+            
+            db.session.commit()
+            
+            # Сохраняем запись об откате
+            from utils import create_version
+            create_version('School', school.PK_School, 'rollback', 
+                          current_data, data, current_user.id)
+            
+            flash('Откат выполнен успешно', 'success')
+        else:
+            flash('Нет данных для отката', 'warning')
+    else:
+        flash('Откат для этой таблицы пока не поддерживается', 'warning')
+    
+    return redirect(url_for('school_history', school_id=version.record_id))
+
 # Команды CLI
 @app.cli.command('init-db')
 def init_db_command():

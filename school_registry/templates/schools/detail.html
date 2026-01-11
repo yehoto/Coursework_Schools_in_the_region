@@ -67,6 +67,10 @@
                    class="btn btn-light btn-lg">
                     <i class="bi bi-pencil"></i> Редактировать
                 </a>
+                 <a href="{{ url_for('school_history', school_id=school.PK_School) }}" 
+                class="btn btn-info mt-2">
+                    <i class="bi bi-clock-history"></i> История изменений
+                </a>
                 {% endif %}
             </div>
         </div>
@@ -230,23 +234,38 @@
                             <div class="mb-3">
                                 <label class="form-label">Оценка</label>
                                 <div class="rating-input mb-2">
-                                    {% for i in range(5, 0, -1) %}
+                                    {% for choice in form.rating.choices %}
                                     <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio"
-                                               name="rating" id="rating{{ i }}" value="{{ i }}"
-                                               {% if i == 5 %}checked{% endif %}>
-                                        <label class="form-check-label" for="rating{{ i }}">
-                                            {{ i }} <i class="bi bi-star"></i>
+                                        <input class="form-check-input" type="radio" 
+                                               name="{{ form.rating.name }}" 
+                                               id="rating{{ choice[0] }}" 
+                                               value="{{ choice[0] }}"
+                                               {% if loop.first %}checked{% endif %}>
+                                        <label class="form-check-label" for="rating{{ choice[0] }}">
+                                            {{ choice[1] }}
                                         </label>
                                     </div>
                                     {% endfor %}
                                 </div>
+                                {% if form.rating.errors %}
+                                <div class="text-danger small">
+                                    {% for error in form.rating.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
                             
                             <div class="mb-3">
                                 <label class="form-label">Текст отзыва</label>
-                                <textarea name="text" class="form-control" rows="3"
-                                          placeholder="Напишите ваш отзыв..." required></textarea>
+                                {{ form.text(class="form-control", rows="3", placeholder="Напишите ваш отзыв...") }}
+                                {% if form.text.errors %}
+                                <div class="text-danger small">
+                                    {% for error in form.text.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
                             
                             <button type="submit" class="btn btn-warning">
@@ -264,29 +283,30 @@
                 </div>
             </div>
         </div>
+        <!-- Конец левой колонки -->
         
         <!-- Правая колонка - дополнительная информация -->
         <div class="col-lg-4">
             <!-- Карта -->
-                    <div class="card mb-4 info-card">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Местоположение</h5>
-            </div>
-            <div class="card-body text-center py-4">
-                <div class="mb-3">
-                    <i class="bi bi-geo-alt-fill display-4 text-danger"></i>
+            <div class="card mb-4 info-card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Местоположение</h5>
                 </div>
-                <p class="mb-4">
-                    <strong>Адрес:</strong><br>
-                    {{ school.Legal_Adress }}
-                </p>
-                <a href="https://yandex.ru/maps/?text={{ school.Legal_Adress|urlencode }}"
-                target="_blank" class="btn btn-danger w-100">
-                    <i class="bi bi-map"></i> Открыть в Яндекс.Картах
-                </a>
+                <div class="card-body text-center py-4">
+                    <div class="mb-3">
+                        <i class="bi bi-geo-alt-fill display-4 text-danger"></i>
+                    </div>
+                    <p class="mb-4">
+                        <strong>Адрес:</strong><br>
+                        {{ school.Legal_Adress }}
+                    </p>
+                    <a href="https://yandex.ru/maps/?text={{ school.Legal_Adress|urlencode }}"
+                       target="_blank" class="btn btn-danger w-100">
+                        <i class="bi bi-map"></i> Открыть в Яндекс.Картах
+                    </a>
+                </div>
             </div>
-        </div>
-                    
+            
             <!-- Сотрудники -->
             {% if employees %}
             <div class="card mb-4 info-card">
@@ -379,6 +399,7 @@
                 </div>
             </div>
         </div>
+        <!-- Конец правой колонки -->
     </div>
 </div>
 {% endblock %}

@@ -7,6 +7,200 @@ from datetime import datetime
 from functools import wraps
 from flask import current_app, request, abort
 from models import db, AuditLog
+from models import DataVersion
+from datetime import datetime, timezone
+import json
+
+def create_version(table_name, record_id, action, data_before, data_after, user_id):
+    """Создание записи о версии данных"""
+    from models import DataVersion, db
+    from datetime import datetime, timezone
+    
+    version = DataVersion(
+        table_name=table_name,
+        record_id=record_id,
+        action=action,
+        data_before=data_before,
+        data_after=data_after,
+        changed_by=user_id,
+        changed_at=datetime.now(timezone.utc)
+    )
+    
+    db.session.add(version)
+    db.session.commit()
+    return version
+
+
+def get_school_versions(school_id):
+    """Получить историю изменений школы"""
+    from models import DataVersion
+    return DataVersion.query.filter_by(
+        table_name='School',
+        record_id=school_id
+    ).order_by(DataVersion.changed_at.desc()).all()
+
+
+def save_school_version_on_create(school, user_id):
+    """Сохранение версии при создании школы"""
+    school_data = {
+        'Official_Name': school.Official_Name,
+        'Legal_Adress': school.Legal_Adress,
+        'Phone': school.Phone,
+        'Email': school.Email,
+        'Website': school.Website,
+        'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+        'Number_of_Students': school.Number_of_Students,
+        'License': school.License,
+        'Accreditation': school.Accreditation,
+        'PK_Type_of_School': school.PK_Type_of_School,
+        'PK_Settlement': school.PK_Settlement,
+        'is_active': school.is_active
+    }
+    
+    create_version('School', school.PK_School, 'create', None, school_data, user_id)
+
+
+def save_school_version_on_update(school, old_values, user_id):
+    """Сохранение версии при обновлении школы"""
+    school_data = {
+        'Official_Name': school.Official_Name,
+        'Legal_Adress': school.Legal_Adress,
+        'Phone': school.Phone,
+        'Email': school.Email,
+        'Website': school.Website,
+        'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+        'Number_of_Students': school.Number_of_Students,
+        'License': school.License,
+        'Accreditation': school.Accreditation,
+        'PK_Type_of_School': school.PK_Type_of_School,
+        'PK_Settlement': school.PK_Settlement,
+        'is_active': school.is_active
+    }
+    
+    create_version('School', school.PK_School, 'update', old_values, school_data, user_id)
+
+
+def save_school_version_on_delete(school, user_id):
+    """Сохранение версии при удалении школы"""
+    school_data = {
+        'Official_Name': school.Official_Name,
+        'Legal_Adress': school.Legal_Adress,
+        'Phone': school.Phone,
+        'Email': school.Email,
+        'Website': school.Website,
+        'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+        'Number_of_Students': school.Number_of_Students,
+        'License': school.License,
+        'Accreditation': school.Accreditation,
+        'PK_Type_of_School': school.PK_Type_of_School,
+        'PK_Settlement': school.PK_Settlement,
+        'is_active': school.is_active
+    }
+    
+    create_version('School', school.PK_School, 'delete', school_data, None, user_id)
+
+def create_version(table_name, record_id, action, data_before, data_after, user_id):
+    """Создание записи о версии данных"""
+    version = DataVersion(
+        table_name=table_name,
+        record_id=record_id,
+        action=action,
+        data_before=data_before,
+        data_after=data_after,
+        changed_by=user_id,
+        changed_at=datetime.now(timezone.utc)
+    )
+    db.session.add(version)
+    db.session.commit()
+    return version
+
+def get_versions(table_name, record_id, limit=50):
+    """Получить историю изменений записи"""
+    return DataVersion.query.filter_by(
+        table_name=table_name,
+        record_id=record_id
+    ).order_by(db.desc(DataVersion.changed_at)).limit(limit).all()
+
+def rollback_to_version(version_id):
+    """Откат к конкретной версии"""
+    version = DataVersion.query.get(version_id)
+    if not version:
+        return False, "Версия не найдена"
+    
+    if version.action == 'delete' and version.data_before:
+        # Восстановление удаленной записи
+        # Здесь нужно импортировать соответствующую модель
+        # и создать объект из data_before
+        pass
+    elif version.action in ['create', 'update'] and version.data_before:
+        # Восстановление данных из предыдущей версии
+        # Здесь нужно обновить запись данными из data_before
+        pass
+    
+    # Создаем запись об откате
+    create_version(
+        table_name=version.table_name,
+        record_id=version.record_id,
+        action='rollback',
+        data_before=version.data_after,
+        data_after=version.data_before,
+        user_id=current_user.id
+    )
+    
+    return True, "Откат выполнен успешно"
+
+def get_school_versions(school_id, limit=50):
+    """Получить историю изменений школы"""
+    return get_versions('School', school_id, limit)
+
+def save_school_version(school, action, user_id):
+    """Сохранение версии школы"""
+    school_data = {
+        'Official_Name': school.Official_Name,
+        'Legal_Adress': school.Legal_Adress,
+        'Phone': school.Phone,
+        'Email': school.Email,
+        'Website': school.Website,
+        'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+        'Number_of_Students': school.Number_of_Students,
+        'License': school.License,
+        'Accreditation': school.Accreditation,
+        'PK_Type_of_School': school.PK_Type_of_School,
+        'PK_Settlement': school.PK_Settlement,
+        'is_active': school.is_active,
+        'infrastructure': [infra.PK_Infrastructure for infra in school.infrastructure],
+        'specializations': [spec.PK_Specialization for spec in school.specializations]
+    }
+    
+    # Для update нужно получить предыдущую версию
+    if action == 'update':
+        last_version = DataVersion.query.filter_by(
+            table_name='School',
+            record_id=school.PK_School,
+            action='update'
+        ).order_by(db.desc(DataVersion.changed_at)).first()
+        
+        if last_version:
+            data_before = last_version.data_after
+        else:
+            # Если нет предыдущей версии update, берем create версию
+            create_version = DataVersion.query.filter_by(
+                table_name='School',
+                record_id=school.PK_School,
+                action='create'
+            ).first()
+            data_before = create_version.data_after if create_version else school_data
+    else:
+        data_before = None
+    
+    create_version(
+        table_name='School',
+        record_id=school.PK_School,
+        action=action,
+        data_before=data_before,
+        data_after=school_data,
+        user_id=user_id
+    )
 
 def allowed_file(filename, allowed_extensions):
     """Проверка разрешенных расширений файлов"""

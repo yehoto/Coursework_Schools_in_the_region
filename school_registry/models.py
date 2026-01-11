@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -36,21 +36,25 @@ school_program_implementation = db.Table(
     db.Column('"PK_Education_Program"', db.BigInteger, db.ForeignKey('"Education_Program"."PK_Education_Program"'), primary_key=True)
 )
 
-class User(UserMixin, db.Model):
+class User(db.Model, UserMixin):  # Добавьте UserMixin
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
-    role = db.Column(db.Integer, default=1)  # 1=parent по умолчанию
+    role = db.Column(db.Integer, default=1)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime)
-    
-    # Для интеграции с госуслугами
-    gosuslugi_id = db.Column(db.String(100), unique=True, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    last_login = db.Column(db.DateTime, nullable=True)
+    gosuslugi_id = db.Column(db.String(100), nullable=True)
     gosuslugi_data = db.Column(db.Text, nullable=True)
+    
+    # Удалите все отношения с Review - создадим заново ниже
+    # reviews = db.relationship('Review', backref='author_user', lazy='dynamic')
+    
+    def __repr__(self):
+        return f'<User {self.username}>'
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -59,29 +63,10 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
     
     def has_role(self, role_name):
-        """Безопасная проверка роли - работает даже для неаутентифицированных"""
-        if not hasattr(self, 'role') or self.role is None:
-            return False
+        """Проверка роли пользователя"""
         from config import Config
         required_role = Config.ROLES.get(role_name, 0)
         return self.role >= required_role
-    
-    def get_role_name(self):
-        """Безопасное получение имени роли"""
-        if not hasattr(self, 'role') or self.role is None:
-            return 'Гость'
-        roles = {
-            0: 'Гость',
-            1: 'Родитель',
-            2: 'Учитель',
-            3: 'Администратор школы',
-            4: 'Администратор региона',
-            5: 'Супер-администратор'
-        }
-        return roles.get(self.role, 'Неизвестно')
-    
-    def __repr__(self):
-        return f'<User {self.username}>'
 
 class School(db.Model):
     __tablename__ = '"School"'
@@ -229,8 +214,8 @@ class Review(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     is_approved = db.Column(db.Boolean, default=True)
     
-    # Связи
-    user = db.relationship('User', backref='reviews')
+    # Связи - УПРОЩАЕМ: оставляем только user, без backref
+    user = db.relationship('User')
     
     def __repr__(self):
         return f'<Review {self.PK_Review} - School {self.PK_School}>'
@@ -282,3 +267,23 @@ class ImportHistory(db.Model):
     
     def __repr__(self):
         return f'<ImportHistory {self.filename}>'
+    
+class DataVersion(db.Model):
+    __tablename__ = 'data_versions'
+    
+    # Все имена в snake_case, как в базе данных
+    pk_version = db.Column('pk_version', db.Integer, primary_key=True)
+    table_name = db.Column('table_name', db.String(100), nullable=False)
+    record_id = db.Column('record_id', db.Integer, nullable=False)
+    action = db.Column('action', db.String(20), nullable=False)  # create, update, delete, rollback
+    data_before = db.Column('data_before', db.JSON, nullable=True)
+    data_after = db.Column('data_after', db.JSON, nullable=True)
+    changed_by = db.Column('changed_by', db.Integer, db.ForeignKey('users.id'))
+    changed_at = db.Column('changed_at', db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column('created_at', db.DateTime, default=datetime.now(timezone.utc))
+    
+    # Связи
+    user = db.relationship('User', backref='versions')
+    
+    def __repr__(self):
+        return f'<DataVersion {self.pk_version}: {self.table_name}.{self.record_id} - {self.action}>'

@@ -1754,7 +1754,7 @@ def school_history(school_id):
 @login_required
 @role_required('super_admin')
 def rollback_version(version_id):
-    """Откат к предыдущей версии"""
+    """Откат к предыдущей версии с улучшенным логированием"""
     from models import DataVersion
     import json
     
@@ -1763,59 +1763,281 @@ def rollback_version(version_id):
     if version.table_name == 'School':
         school = School.query.get_or_404(version.record_id)
         
+        # Сохраняем текущее состояние перед откатом
+        current_state = {
+            'Official_Name': school.Official_Name,
+            'Legal_Adress': school.Legal_Adress,
+            'Phone': school.Phone,
+            'Email': school.Email,
+            'Website': school.Website,
+            'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
+            'Number_of_Students': school.Number_of_Students,
+            'License': school.License,
+            'Accreditation': school.Accreditation,
+            'PK_Type_of_School': school.PK_Type_of_School,
+            'PK_Settlement': school.PK_Settlement,
+            'is_active': school.is_active
+        }
+        
+        # Восстанавливаем данные из версии
         if version.data_before:
-            # Сохраняем текущие данные перед откатом
-            current_data = {
-                'Official_Name': school.Official_Name,
-                'Legal_Adress': school.Legal_Adress,
-                'Phone': school.Phone,
-                'Email': school.Email,
-                'Website': school.Website,
-                'Founding_Date': school.Founding_Date.isoformat() if school.Founding_Date else None,
-                'Number_of_Students': school.Number_of_Students,
-                'License': school.License,
-                'Accreditation': school.Accreditation,
-                'PK_Type_of_School': school.PK_Type_of_School,
-                'PK_Settlement': school.PK_Settlement,
-                'is_active': school.is_active
-            }
-            
-            # Восстанавливаем данные из версии
             data = version.data_before
             
-            school.Official_Name = data['Official_Name']
-            school.Legal_Adress = data['Legal_Adress']
-            school.Phone = data['Phone']
-            school.Email = data['Email']
-            school.Website = data['Website']
+            # Логируем изменения
+            changes_log = []
+            for key, value in data.items():
+                current_value = current_state.get(key)
+                if current_value != value:
+                    changes_log.append(f"{key}: {current_value} -> {value}")
             
-            if data['Founding_Date']:
+            # Применяем изменения
+            school.Official_Name = data.get('Official_Name', school.Official_Name)
+            school.Legal_Adress = data.get('Legal_Adress', school.Legal_Adress)
+            school.Phone = data.get('Phone', school.Phone)
+            school.Email = data.get('Email', school.Email)
+            school.Website = data.get('Website', school.Website)
+            
+            if data.get('Founding_Date'):
                 from datetime import datetime
                 school.Founding_Date = datetime.fromisoformat(data['Founding_Date'])
-            else:
-                school.Founding_Date = None
-                
-            school.Number_of_Students = data['Number_of_Students']
-            school.License = data['License']
-            school.Accreditation = data['Accreditation']
-            school.PK_Type_of_School = data['PK_Type_of_School']
-            school.PK_Settlement = data['PK_Settlement']
-            school.is_active = data['is_active']
+            
+            school.Number_of_Students = data.get('Number_of_Students', school.Number_of_Students)
+            school.License = data.get('License', school.License)
+            school.Accreditation = data.get('Accreditation', school.Accreditation)
+            school.PK_Type_of_School = data.get('PK_Type_of_School', school.PK_Type_of_School)
+            school.PK_Settlement = data.get('PK_Settlement', school.PK_Settlement)
+            school.is_active = data.get('is_active', school.is_active)
             
             db.session.commit()
             
-            # Сохраняем запись об откате
+            # Создаем запись об откате
             from utils import create_version
-            create_version('School', school.PK_School, 'rollback', 
-                          current_data, data, current_user.id)
+            create_version(
+                'School', 
+                school.PK_School, 
+                'rollback',
+                current_state, 
+                data, 
+                current_user.id,
+                description=f"Откат к версии {version_id}. Изменения: {', '.join(changes_log)}"
+            )
             
-            flash('Откат выполнен успешно', 'success')
+            flash(f'Откат выполнен успешно. Изменено {len(changes_log)} полей.', 'success')
         else:
             flash('Нет данных для отката', 'warning')
     else:
         flash('Откат для этой таблицы пока не поддерживается', 'warning')
     
     return redirect(url_for('school_history', school_id=version.record_id))
+
+# Управление проверками Рособрнадзора
+@app.route('/admin/inspections')
+@login_required
+@role_required('region_admin')
+def admin_inspections():
+    """Управление проверками Рособрнадзора"""
+    page = request.args.get('page', 1, type=int)
+    status = request.args.get('status', 'all')
+    
+    query = Inspection.query
+    
+    if status == 'active':
+        query = query.filter(Inspection.has_violations == True, Inspection.is_resolved == False)
+    elif status == 'resolved':
+        query = query.filter(Inspection.is_resolved == True)
+    elif status == 'with_violations':
+        query = query.filter(Inspection.has_violations == True)
+    
+    inspections = query.order_by(Inspection.Date.desc()).paginate(page=page, per_page=20)
+    
+    return render_template('admin/inspections.html',
+                         inspections=inspections,
+                         status=status)
+
+@app.route('/admin/inspection/add', methods=['GET', 'POST'])
+@login_required
+@role_required('region_admin')
+def add_inspection():
+    """Добавление проверки"""
+    from forms import InspectionForm
+    
+    form = InspectionForm()
+    form.school_id.choices = [(s.PK_School, s.Official_Name) 
+                             for s in School.query.filter_by(is_active=True).order_by(School.Official_Name).all()]
+    
+    if form.validate_on_submit():
+        inspection = Inspection(
+            Date=form.date.data,
+            Result=form.result.data,
+            Prescription_Number=form.prescription_number.data,
+            PK_School=form.school_id.data,
+            has_violations=form.has_violations.data,
+            violation_type=form.violation_type.data,
+            is_resolved=form.is_resolved.data,
+            resolution_date=form.resolution_date.data,
+            description=form.description.data
+        )
+        
+        db.session.add(inspection)
+        db.session.commit()
+        
+        audit_log(current_user.id, 'create', 'Inspection', inspection.PK_Inspection,
+                  new_values={'Prescription_Number': inspection.Prescription_Number})
+        
+        flash('Проверка успешно добавлена', 'success')
+        return redirect(url_for('admin_inspections'))
+    
+    return render_template('admin/add_inspection.html', form=form)
+
+@app.route('/admin/inspection/<int:inspection_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('region_admin')
+def edit_inspection(inspection_id):
+    """Редактирование проверки"""
+    from forms import InspectionForm
+    
+    inspection = Inspection.query.get_or_404(inspection_id)
+    form = InspectionForm(obj=inspection)
+    
+    form.school_id.choices = [(s.PK_School, s.Official_Name) 
+                             for s in School.query.filter_by(is_active=True).order_by(School.Official_Name).all()]
+    
+    if request.method == 'GET':
+        form.date.data = inspection.Date
+        form.result.data = inspection.Result
+        form.prescription_number.data = inspection.Prescription_Number
+        form.school_id.data = inspection.PK_School
+        form.has_violations.data = inspection.has_violations
+        form.violation_type.data = inspection.violation_type
+        form.is_resolved.data = inspection.is_resolved
+        form.resolution_date.data = inspection.resolution_date
+        form.description.data = inspection.description
+    
+    if form.validate_on_submit():
+        old_values = {
+            'Prescription_Number': inspection.Prescription_Number,
+            'Result': inspection.Result[:50] + '...' if len(inspection.Result) > 50 else inspection.Result
+        }
+        
+        inspection.Date = form.date.data
+        inspection.Result = form.result.data
+        inspection.Prescription_Number = form.prescription_number.data
+        inspection.PK_School = form.school_id.data
+        inspection.has_violations = form.has_violations.data
+        inspection.violation_type = form.violation_type.data
+        inspection.is_resolved = form.is_resolved.data
+        inspection.resolution_date = form.resolution_date.data
+        inspection.description = form.description.data
+        
+        db.session.commit()
+        
+        audit_log(current_user.id, 'update', 'Inspection', inspection.PK_Inspection,
+                  old_values=old_values,
+                  new_values={'Prescription_Number': inspection.Prescription_Number})
+        
+        flash('Проверка успешно обновлена', 'success')
+        return redirect(url_for('admin_inspections'))
+    
+    return render_template('admin/edit_inspection.html', form=form, inspection=inspection)
+
+@app.route('/admin/inspection/<int:inspection_id>/delete', methods=['POST'])
+@login_required
+@role_required('super_admin')
+def delete_inspection(inspection_id):
+    """Удаление проверки"""
+    inspection = Inspection.query.get_or_404(inspection_id)
+    
+    db.session.delete(inspection)
+    db.session.commit()
+    
+    audit_log(current_user.id, 'delete', 'Inspection', inspection_id,
+              old_values={'Prescription_Number': inspection.Prescription_Number})
+    
+    flash('Проверка удалена', 'success')
+    return redirect(url_for('admin_inspections'))
+
+# Удаление отзывов администратором
+@app.route('/admin/review/<int:review_id>/delete', methods=['POST'])
+@login_required
+@role_required('school_admin')
+def delete_review_admin(review_id):
+    """Удаление отзыва администратором"""
+    review = Review.query.get_or_404(review_id)
+    
+    # Сохраняем информацию перед удалением
+    school_id = review.PK_School
+    review_text = review.Text[:50] + "..." if len(review.Text) > 50 else review.Text
+    
+    # Мягкое удаление
+    review.is_deleted = True
+    review.deleted_by = current_user.id
+    review.deleted_at = datetime.now(timezone.utc)
+    review.deletion_reason = request.form.get('reason', 'Удалено администратором')
+    
+    db.session.commit()
+    
+    audit_log(current_user.id, 'delete', 'Review', review_id,
+              old_values={'Text': review_text, 'Author': review.Author},
+              description=f"Отзыв удален администратором")
+    
+    flash('Отзыв удален', 'success')
+    return redirect(url_for('school_detail', school_id=school_id))
+
+# Отчет по нарушениям
+@app.route('/reports/violations')
+@login_required
+@role_required('region_admin')
+def report_violations():
+    """Отчет по нарушениям Рособрнадзора"""
+    # Фильтры
+    district_id = request.args.get('district_id')
+    year = request.args.get('year', datetime.now().year, type=int)
+    violation_type = request.args.get('violation_type')
+    
+    query = Inspection.query.filter(
+        Inspection.has_violations == True
+    )
+    
+    if year:
+        query = query.filter(db.extract('year', Inspection.Date) == year)
+    
+    if district_id:
+        query = query.join(School).join(Settlement).filter(
+            Settlement.PK_District == district_id
+        )
+    
+    if violation_type:
+        query = query.filter(Inspection.violation_type.ilike(f'%{violation_type}%'))
+    
+    inspections = query.order_by(Inspection.Date.desc()).all()
+    
+    # Статистика
+    total_violations = len(inspections)
+    by_district = {}
+    by_type = {}
+    
+    for inspection in inspections:
+        # Статистика по районам
+        if inspection.school and inspection.school.settlement:
+            district_name = inspection.school.settlement.district.Name
+            by_district[district_name] = by_district.get(district_name, 0) + 1
+        
+        # Статистика по типам нарушений
+        if inspection.violation_type:
+            violation_types = [vt.strip() for vt in inspection.violation_type.split(',')]
+            for vt in violation_types:
+                by_type[vt] = by_type.get(vt, 0) + 1
+    
+    # Данные для фильтров
+    districts = District.query.order_by(District.Name).all()
+    
+    return render_template('reports/violations.html',
+                         inspections=inspections,
+                         total_violations=total_violations,
+                         by_district=by_district,
+                         by_type=by_type,
+                         districts=districts,
+                         year=year)
 
 # Команды CLI
 @app.cli.command('init-db')

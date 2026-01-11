@@ -8,6 +8,7 @@ from wtforms import (
 from wtforms.validators import DataRequired, Length, EqualTo, ValidationError, Optional, Email, URL
 from models import User
 
+
 class LoginForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired()])
     password = PasswordField('Пароль', validators=[DataRequired()])
@@ -181,3 +182,15 @@ class UserProfileForm(FlaskForm):
         validators=[EqualTo('new_password')]
     )
     submit = SubmitField('Обновить профиль')
+
+class InspectionForm(FlaskForm):
+    date = DateField('Дата проверки', validators=[DataRequired()])
+    result = TextAreaField('Результат проверки', validators=[DataRequired(), Length(max=2000)])
+    prescription_number = StringField('Номер предписания', validators=[DataRequired(), Length(max=50)])
+    school_id = SelectField('Школа', coerce=int, validators=[DataRequired()])
+    has_violations = BooleanField('Нарушения выявлены')
+    violation_type = StringField('Тип нарушений', validators=[Optional(), Length(max=200)])
+    is_resolved = BooleanField('Нарушения устранены')
+    resolution_date = DateField('Дата устранения', validators=[Optional()])
+    description = TextAreaField('Описание', validators=[Optional(), Length(max=1000)])
+    submit = SubmitField('Сохранить')

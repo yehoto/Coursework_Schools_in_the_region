@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Сводка по нарушениям - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4"><i class="bi bi-exclamation-triangle"></i> Сводка по нарушениям Рособрнадзора</h1>
+    
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-funnel"></i> Параметры отчета</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Район</label>
+                    <select name="district_id" class="form-select">
+                        <option value="">Все районы</option>
+                        {% for district in districts %}
+                        <option value="{{ district.PK_District }}">{{ district.Name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Год</label>
+                    <input type="number" name="year" class="form-control" value="{{ year }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Тип нарушения</label>
+                    <input type="text" name="violation_type" class="form-control" placeholder="Например: СанПиН">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-danger">Применить фильтры</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h6>Всего нарушений</h6>
+                    <h2>{{ total_violations }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Таблица нарушений -->
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0">Список нарушений</h5>
+        </div>
+        <div class="card-body">
+            {% if inspections %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Школа</th>
+                            <th>Тип нарушения</th>
+                            <th>Описание</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inspection in inspections %}
+                        <tr>
+                            <td>{{ inspection.Date.strftime('%d.%m.%Y') }}</td>
+                            <td>
+                                <a href="{{ url_for('school_detail', school_id=inspection.PK_School) }}">
+                                    {{ inspection.school.Official_Name }}
+                                </a>
+                            </td>
+                            <td>{{ inspection.violation_type or 'Не указан' }}</td>
+                            <td>{{ inspection.description[:100] }}...</td>
+                            <td>
+                                {% if inspection.is_resolved %}
+                                <span class="badge bg-success">Устранено</span>
+                                {% else %}
+                                <span class="badge bg-warning">На рассмотрении</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Нарушений не найдено
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать проверку - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-pencil"></i> Редактировать проверку</h4>
+                    <p class="mb-0 small">Номер предписания: {{ inspection.Prescription_Number }}</p>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_inspection', inspection_id=inspection.PK_Inspection) }}" class="needs-validation" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Вы редактируете проверку от {{ inspection.Date.strftime('%d.%m.%Y') }}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.date.label(class="form-label") }}
+                                    {{ form.date(class="form-control", required=true) }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.prescription_number.label(class="form-label") }}
+                                    {{ form.prescription_number(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.school_id.label(class="form-label") }}
+                            {{ form.school_id(class="form-select") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.result.label(class="form-label") }}
+                            {{ form.result(class="form-control", rows="3") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.has_violations(class="form-check-input") }}
+                                {{ form.has_violations.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.violation_type.label(class="form-label") }}
+                            {{ form.violation_type(class="form-control") }}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.is_resolved(class="form-check-input") }}
+                                        {{ form.is_resolved.label(class="form-check-label") }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.resolution_date.label(class="form-label") }}
+                                    {{ form.resolution_date(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control", rows="3") }}
+                        </div>
+                        
+                        <div class="mt-4 d-flex justify-content-between">
+                            <a href="{{ url_for('admin_inspections') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Отмена
+                            </a>
+                            {{ form.submit(class="btn btn-warning") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var forms = document.querySelectorAll('.needs-validation');
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            });
+        });
+    });
+</script>
+{% endblock %}

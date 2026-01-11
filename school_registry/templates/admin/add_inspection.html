@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить проверку - Реестр школ Алтайского края{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-plus-circle"></i> Добавить проверку Рособрнадзора</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('add_inspection') }}" class="needs-validation" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.date.label(class="form-label") }}
+                                    {{ form.date(class="form-control", required=true) }}
+                                    {% if form.date.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.date.errors[0] }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.prescription_number.label(class="form-label") }}
+                                    {{ form.prescription_number(class="form-control", placeholder="Например: 01-01-2024/123") }}
+                                    {% if form.prescription_number.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.prescription_number.errors[0] }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.school_id.label(class="form-label") }}
+                            {{ form.school_id(class="form-select") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.result.label(class="form-label") }}
+                            {{ form.result(class="form-control", rows="3", placeholder="Опишите результаты проверки...") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                {{ form.has_violations(class="form-check-input") }}
+                                {{ form.has_violations.label(class="form-check-label") }}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.violation_type.label(class="form-label") }}
+                            {{ form.violation_type(class="form-control", placeholder="Например: СанПиН, пожарная безопасность") }}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        {{ form.is_resolved(class="form-check-input") }}
+                                        {{ form.is_resolved.label(class="form-check-label") }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    {{ form.resolution_date.label(class="form-label") }}
+                                    {{ form.resolution_date(class="form-control") }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control", rows="3", placeholder="Дополнительное описание проверки...") }}
+                        </div>
+                        
+                        <div class="mt-4 d-flex justify-content-between">
+                            <a href="{{ url_for('admin_inspections') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Отмена
+                            </a>
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="bi bi-info-circle"></i> Подсказки</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Все поля, помеченные <strong>*</strong>, обязательны для заполнения</li>
+                        <li>Номер предписания должен быть уникальным для каждой проверки</li>
+                        <li>Отметьте "Нарушения выявлены", если в ходе проверки были обнаружены нарушения</li>
+                        <li>Укажите "Дата устранения" и отметьте "Нарушения устранены" после исправления нарушений</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Валидация форм
+        var forms = document.querySelectorAll('.needs-validation');
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            });
+        });
+        
+        // Показать/скрыть поля в зависимости от нарушения
+        var hasViolationsCheckbox = document.getElementById('has_violations');
+        var violationTypeField = document.getElementById('violation_type');
+        var isResolvedCheckbox = document.getElementById('is_resolved');
+        var resolutionDateField = document.getElementById('resolution_date');
+        
+        function toggleViolationFields() {
+            if (hasViolationsCheckbox.checked) {
+                violationTypeField.parentElement.style.display = 'block';
+                isResolvedCheckbox.parentElement.style.display = 'block';
+                if (isResolvedCheckbox.checked) {
+                    resolutionDateField.parentElement.style.display = 'block';
+                } else {
+                    resolutionDateField.parentElement.style.display = 'none';
+                }
+            } else {
+                violationTypeField.parentElement.style.display = 'none';
+                isResolvedCheckbox.parentElement.style.display = 'none';
+                resolutionDateField.parentElement.style.display = 'none';
+            }
+        }
+        
+        hasViolationsCheckbox.addEventListener('change', toggleViolationFields);
+        isResolvedCheckbox.addEventListener('change', toggleViolationFields);
+        
+        // Инициализация при загрузке
+        toggleViolationFields();
+    });
+</script>
+{% endblock %}
